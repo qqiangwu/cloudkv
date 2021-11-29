@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <fmt/core.h>
 #include "memtable.h"
 
 using namespace std;

@@ -1,6 +1,5 @@
 #include <string_view>
 #include <gtest/gtest.h>
-#include <iostream>
 #include "memtable.h"
 
 using namespace std;
