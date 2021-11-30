@@ -28,8 +28,6 @@ public:
     void done();
 
 private:
-    void encode_str_(std::string* buf, std::string_view s);
-
     std::string build_record_(const internal_key& key, std::string_view value);
     std::string build_footer_();
 

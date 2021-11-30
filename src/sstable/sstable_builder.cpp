@@ -2,6 +2,7 @@
 #include <fmt/core.h>
 #include "util/coding.h"
 #include "cloudkv/exception.h"
+#include "sstable/format.h"
 #include "sstable/sstable_builder.h"
 
 using namespace std;
@@ -21,7 +22,7 @@ void sstable_builder::add(const internal_key& key, std::string_view value)
         auto& ctx = ctx_.value();
         ctx.key_min = key.user_key();
         ctx.key_max = key.user_key();
-        ctx.count = 1;
+        ctx.count = 0;
     }
 
     auto& ctx = ctx_.value();
@@ -53,22 +54,16 @@ void sstable_builder::done()
     }
 }
 
-void sstable_builder::encode_str_(std::string* buf, string_view s)
-{
-    PutFixed32(buf, s.size());
-    *buf += s;
-}
-
 std::string sstable_builder::build_record_(const internal_key& key, std::string_view value)
 {
     std::string buf;
 
-    encode_str_(&buf, key.user_key());
+    encode_str(&buf, key.user_key());
 
     PutFixed64(&buf, key.seq());
     PutFixed32(&buf, std::uint32_t(key.type()));
 
-    encode_str_(&buf, value);
+    encode_str(&buf, value);
 
     return buf;
 }
@@ -77,11 +72,11 @@ std::string sstable_builder::build_footer_()
 {
     std::string footer;
 
-    encode_str_(&footer, ctx_->key_min);
-    encode_str_(&footer, ctx_->key_max);
+    encode_str(&footer, ctx_->key_min);
+    encode_str(&footer, ctx_->key_max);
     
-    PutFixed64(&footer, ctx_->count);
-    PutFixed64(&footer, footer.size());
+    PutFixed32(&footer, ctx_->count);
+    PutFixed32(&footer, footer.size());
 
     return footer;
 }
