@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <range/v3/view.hpp>
 #include <range/v3/action.hpp>
+#include <range/v3/algorithm.hpp>
 #include <fmt/core.h>
 #include "cloudkv/exception.h"
 #include "sstable/sstable.h"
@@ -54,17 +55,33 @@ TEST(sstable_builder, Build)
     EXPECT_EQ(sst.min(), key_min);
     EXPECT_EQ(sst.max(), key_max);
 
-/*
     auto kv = sst.query_range(key_min, key_max);
     EXPECT_EQ(kv.size(), keys.size());
 
-    const auto user_keys = kv | views::transform([](const auto& x){
-        return x.key.user_key();
-    });
-    const auto user_vals = kv | views::transform([](const auto& x){
-        return x.value();
-    });
+    const auto user_keys = kv | views::transform([](const auto& x) {
+        return string(x.key.user_key());
+    }) | to<std::vector>();
+    const auto user_vals = kv | views::transform([](const auto& x) {
+        return x.value;
+    }) | to<std::vector>();
 
     EXPECT_EQ(keys, user_keys);
-    EXPECT_EQ(vals, user_vals);*/
+    EXPECT_EQ(vals, user_vals);
+
+    const string_view test_key = "123";
+    const auto pos = ranges::find(keys, test_key) - keys.begin();
+    EXPECT_TRUE(pos > 0);
+
+    auto queried_kv = sst.query("123", pos);
+    EXPECT_TRUE(queried_kv);
+    EXPECT_EQ(queried_kv->key.user_key(), "123");
+    EXPECT_EQ(queried_kv->key.seq(), pos);
+    EXPECT_EQ(queried_kv->key.type(), key_type::value);
+    EXPECT_EQ(queried_kv->value, "val-123");
+
+    auto old_kv = sst.query("123", 1);
+    EXPECT_TRUE(!old_kv);
+
+    auto nonexist_kv = sst.query(fmt::format("{}{}", key_max, 1), raw_keys.back());
+    EXPECT_TRUE(!nonexist_kv);
 }

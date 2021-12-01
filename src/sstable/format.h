@@ -11,6 +11,7 @@ namespace cloudkv {
 using namespace leveldb;
 
 constexpr std::int32_t sst_foot_size = sizeof(std::uint32_t);
+constexpr std::int32_t str_prefix_size = sizeof(std::uint32_t);
 
 inline void encode_str(std::string* buf, std::string_view s)
 {
