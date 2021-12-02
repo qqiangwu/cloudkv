@@ -51,3 +51,22 @@ TEST(db, MultiInsert)
         EXPECT_EQ(r.value(), val);
     }
 }
+
+TEST(db, Checkpoint)
+{
+    options opts;
+    opts.write_buffer_size = 1024;
+    auto db = open("test", opts);
+
+    for (int i = 0; i < opts.write_buffer_size; ++i) {
+        db->batch_add({
+            { "key-" + std::to_string(i), "val-" + std::to_string(i) }
+        });
+    }
+
+    for (int i = 0; i < opts.write_buffer_size; ++i) {
+        auto r = db->query("key-" + std::to_string(i));
+        EXPECT_TRUE(r);
+        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+    }
+}

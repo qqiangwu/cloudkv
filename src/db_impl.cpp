@@ -1,10 +1,12 @@
 #include <fstream>
 #include <chrono>
+#include <thread>
 #include <fmt/core.h>
 #include <range/v3/view.hpp>
 #include <spdlog/spdlog.h>
 #include "db_impl.h"
 #include "sstable/sstable_builder.h"
+#include "util/fmt_std.h"
 
 using namespace cloudkv;
 using namespace ranges;
@@ -131,9 +133,11 @@ void db_impl::do_checkpoint_() noexcept
 try {
     do_checkpoint_impl_();
 } catch (std::exception& e) {
-    spdlog::warn("run checkpoint task failed: {}", e.what());
+    spdlog::warn("run checkpoint task failed: {}, sleep for 1s", e.what());
 
-    issue_checkpoint_();    
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(1s);
+    issue_checkpoint_();
 }
 
 void db_impl::do_checkpoint_impl_()
@@ -144,8 +148,8 @@ void db_impl::do_checkpoint_impl_()
     const auto sst_path = format("sst.{}", steady_clock::now().time_since_epoch().count());
     const auto memtable = get_read_ctx_().memtables[1];
     
-    std::fstream ifs(sst_path, std::ios::binary);
-    sstable_builder builder(ifs);
+    std::ofstream ofs(sst_path, std::ios::binary);
+    sstable_builder builder(ofs);
 
     for (const auto& [k, v]: memtable->items()) {
         builder.add(k, v);
@@ -162,6 +166,8 @@ void db_impl::on_checkpoint_done_(sstable_ptr sst)
     auto meta = meta_;
     meta.sstables_.push_back(sst);
 
-    spdlog::info("checkpoint done, {} added", sst->path().native());
+    spdlog::info("checkpoint done, {} added, sst={}", sst->path(), meta.sstables_.size());
+
+    immutable_memtable_.reset();
     std::swap(meta_, meta);
 }

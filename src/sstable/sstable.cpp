@@ -6,16 +6,12 @@
 #include "cloudkv/exception.h"
 #include "sstable/format.h"
 #include "sstable/sstable.h"
+#include "util/fmt_std.h"
 
 using namespace std;
 using namespace cloudkv;
 
 namespace fs = filesystem;
-
-namespace fmt {
-template <>
-struct formatter<std::filesystem::path> : formatter<std::string> {};
-}
 
 sstable::sstable(const path_t& file)
     : path_(file)
