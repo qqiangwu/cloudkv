@@ -4,17 +4,16 @@
 #include <string>
 #include <string_view>
 #include <filesystem>
+#include <tuple>
 
 namespace cloudkv {
 
 using path_t = std::filesystem::path;
-
-using seq_number = std::uint64_t;
-using user_key = std::string_view;
+using user_key_ref = std::string_view;
 
 struct key_range {
-    user_key start;
-    user_key end;
+    user_key_ref start;
+    user_key_ref end;
 };
 
 enum class key_type {
@@ -22,43 +21,17 @@ enum class key_type {
     tombsome
 };
 
-class lookup_key {
-public:
-    lookup_key(std::string_view key, seq_number seq)
-        : key_(key), seq_(seq)
-    {}
-
-    std::string_view key() const
-    {
-        return key_;
-    }
-
-    seq_number seq() const
-    {
-        return seq_;
-    }
-
-private:
-    std::string_view key_;
-    seq_number seq_;
-};
-
 class internal_key {
 public:
     explicit internal_key(std::string_view raw_key);
 
-    internal_key(std::string_view raw_key, seq_number seq, key_type type)
-        : user_key_(raw_key), seq_(seq), type_(type)
+    internal_key(user_key_ref key, key_type type)
+        : user_key_(key), type_(type)
     {}
 
-    std::string_view user_key() const
+    user_key_ref user_key() const
     {
         return user_key_;
-    }
-
-    seq_number seq() const
-    {
-        return seq_;
     }
 
     key_type type() const
@@ -69,13 +42,11 @@ public:
     bool operator==(const internal_key& other) const
     {
         return user_key_ == other.user_key_
-            && seq_ == other.seq_
             && type_ == other.type_;
     }
 
 private:
     std::string user_key_;
-    seq_number seq_;
     key_type type_;
 };
 
@@ -83,5 +54,28 @@ struct internal_key_value {
     internal_key key;
     std::string value;
 };
+
+namespace detail {
+
+struct key_cmp {
+    using is_transparent = void;
+
+    bool operator()(const internal_key& x, const internal_key& y) const
+    {
+        return x.user_key() < y.user_key();
+    }
+
+    bool operator()(const internal_key& x, user_key_ref y) const
+    {
+        return x.user_key() < y;
+    }
+
+    bool operator()(user_key_ref x, const internal_key& y) const
+    {
+        return x < y.user_key();
+    }
+};  
+
+}
 
 }

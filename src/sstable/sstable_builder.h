@@ -8,7 +8,7 @@ namespace cloudkv {
 /**
  * @brief simple format: sorted string list
  * 
- * [record1]: key_size|key_chars|seq|key_type|value_size|value_chars
+ * [record1]: key_size|key_chars|key_type|value_size|value_chars
  * [record2]
  * [record3]
  * ...

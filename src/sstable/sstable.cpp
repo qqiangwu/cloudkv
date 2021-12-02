@@ -2,6 +2,7 @@
 #include <fstream>
 #include <filesystem>
 #include <fmt/core.h>
+#include <range/v3/algorithm.hpp>
 #include "cloudkv/exception.h"
 #include "sstable/format.h"
 #include "sstable/sstable.h"
@@ -58,24 +59,13 @@ sstable::sstable(const path_t& file)
     }
 }
 
-optional<internal_key_value> sstable::query(std::string_view key, seq_number seq)
+optional<internal_key_value> sstable::query(user_key_ref key)
 {
-    optional<internal_key_value> candidate;
-
-    for (const auto& kv: query_range(key, key)) {
-        if (kv.key.user_key() > key) {
-            break;
-        }
-        if (kv.key.user_key() == key) {
-            if (kv.key.seq() > seq) {
-                break;
-            }
-
-            candidate.emplace(std::move(kv));
-        }
-    }
-
-    return candidate;
+    auto r = query_range(key, key);
+    auto it = ranges::find_if(r, [key](const auto& x){
+        return x.key.user_key() == key;
+    });
+    return it == r.end()? nullopt: optional{ std::move(*it) };
 }
 
 vector<internal_key_value> sstable::query_range(std::string_view start_key, std::string_view end_key)
@@ -91,14 +81,6 @@ vector<internal_key_value> sstable::query_range(std::string_view start_key, std:
 
     for (size_t i = 0; i < count_; ++i) {
         auto kv = read_kv_(ifs);
-        const auto& [k, v] = kv;
-        
-        if (k.user_key() > end_key) {
-            break;
-        } else if (k.user_key() < start_key) {
-            continue;
-        }
-
         results.push_back(std::move(kv));
     }
 
@@ -136,7 +118,6 @@ T sstable::read_int_(std::istream& in)
 internal_key_value sstable::read_kv_(std::istream& in)
 {
     auto key = read_str_(in);
-    auto seq = read_int_<uint64_t>(in);
     auto raw_type = read_int_<uint32_t>(in);
     auto val = read_str_(in);
 
@@ -145,5 +126,5 @@ internal_key_value sstable::read_kv_(std::istream& in)
     }
 
     auto type = key_type(raw_type);
-    return { internal_key(key, seq, type), val };
+    return { internal_key(key, type), val };
 }

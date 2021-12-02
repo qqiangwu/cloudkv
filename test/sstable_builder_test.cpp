@@ -30,7 +30,7 @@ TEST(sstable_builder, Build)
     for (const auto i: raw_keys) {
         const auto& key = keys[i];
         const auto& val = vals[i];
-        builder.add(internal_key{key, seq_number(i), key_type::value}, val);
+        builder.add(internal_key{key, key_type::value}, val);
     }
 
     builder.done();
@@ -69,19 +69,13 @@ TEST(sstable_builder, Build)
     EXPECT_EQ(vals, user_vals);
 
     const string_view test_key = "123";
-    const auto pos = ranges::find(keys, test_key) - keys.begin();
-    EXPECT_TRUE(pos > 0);
 
-    auto queried_kv = sst.query("123", pos);
+    auto queried_kv = sst.query(test_key);
     EXPECT_TRUE(queried_kv);
     EXPECT_EQ(queried_kv->key.user_key(), "123");
-    EXPECT_EQ(queried_kv->key.seq(), pos);
     EXPECT_EQ(queried_kv->key.type(), key_type::value);
     EXPECT_EQ(queried_kv->value, "val-123");
 
-    auto old_kv = sst.query("123", 1);
-    EXPECT_TRUE(!old_kv);
-
-    auto nonexist_kv = sst.query(fmt::format("{}{}", key_max, 1), raw_keys.back());
+    auto nonexist_kv = sst.query(fmt::format("{}{}", key_max, 1));
     EXPECT_TRUE(!nonexist_kv);
 }

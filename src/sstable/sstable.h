@@ -13,15 +13,15 @@ class sstable {
 public:
     explicit sstable(const path_t& file);
 
-    std::optional<internal_key_value> query(std::string_view key, seq_number seq);
-    std::vector<internal_key_value> query_range(std::string_view start_key, std::string_view end_key);
+    std::optional<internal_key_value> query(user_key_ref key);
+    std::vector<internal_key_value> query_range(user_key_ref start_key, user_key_ref end_key);
 
-    user_key min() const
+    user_key_ref min() const
     {
         return key_min_;
     }
 
-    user_key max() const
+    user_key_ref max() const
     {
         return key_max_;
     }

@@ -18,6 +18,6 @@ target("cloudkv")
     add_packages("boost", { public = true })
     add_packages("fmt")
     add_packages("spdlog")
-    add_packages("abseil")
+    add_packages("range-v3")
 
 includes("test/")

@@ -60,7 +60,6 @@ std::string sstable_builder::build_record_(const internal_key& key, std::string_
 
     encode_str(&buf, key.user_key());
 
-    PutFixed64(&buf, key.seq());
     PutFixed32(&buf, std::uint32_t(key.type()));
 
     encode_str(&buf, value);
