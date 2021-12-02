@@ -7,7 +7,6 @@
 namespace cloudkv {
 
 struct meta {
-    seq_number next_seq_;
     std::vector<sstable_ptr> sstables_;
 };
 

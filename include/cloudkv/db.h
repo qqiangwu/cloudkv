@@ -17,6 +17,7 @@ struct key_value {
 struct options {
     bool open_only = false;
     bool create_if_not_exist = true;
+    std::uint64_t write_buffer_size = 4 * 1024 * 1024;
 };
 
 class kv_store : private boost::noncopyable {
@@ -24,8 +25,12 @@ public:
     virtual ~kv_store() = default;
 
     virtual std::optional<std::string> query(std::string_view key) = 0;
+
+    // partial inserts may occur
     virtual void batch_add(const std::vector<key_value>& key_values) = 0;
+    
     virtual void remove(std::string_view key) = 0;
+    
     virtual std::map<std::string, std::string> query_range(
         std::string_view start_key,
         std::string_view end_key, 
@@ -33,6 +38,6 @@ public:
 };
 
 // return nullptr if not exists
-std::unique_ptr<kv_store> open(std::string_view name, options& opts);
+std::unique_ptr<kv_store> open(std::string_view name, const options& opts);
 
 }

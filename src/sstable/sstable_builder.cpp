@@ -12,6 +12,7 @@ using namespace leveldb;
 sstable_builder::sstable_builder(std::ostream& out)
     : out_(out)
 {
+    out_.exceptions(std::ios::failbit | std::ios::badbit);
 }
 
 void sstable_builder::add(const internal_key& key, std::string_view value)

@@ -39,6 +39,16 @@ public:
         return type_;
     }
 
+    bool is_value() const
+    {
+        return type_ == key_type::value;
+    }
+
+    bool is_deleted() const
+    {
+        return type_ == key_type::tombsome;
+    }
+
     bool operator==(const internal_key& other) const
     {
         return user_key_ == other.user_key_

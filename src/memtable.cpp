@@ -9,6 +9,7 @@ void memtable::add(user_key_ref key, string_view value)
     lock_guard _(mut_);
 
     map_.emplace(internal_key{key, key_type::value}, value);
+    bytes_used_ += key.size() + value.size();
 }
 
 void memtable::remove(user_key_ref key)
@@ -17,10 +18,13 @@ void memtable::remove(user_key_ref key)
 
     const auto it = map_.find(key);
     if (it != map_.end()) {
+        bytes_used_ -= it->first.user_key().size() + it->second.size();
+
         map_.erase(it);
     }
 
     map_.emplace(internal_key{key, key_type::tombsome}, "");
+    bytes_used_ += key.size();
 }
 
 std::optional<internal_key_value> memtable::query(user_key_ref key) const
@@ -52,4 +56,10 @@ std::vector<internal_key_value> memtable::query_range(const key_range& r) const
     });
 
     return results;
+}
+
+std::uint64_t memtable::bytes_used() const noexcept
+{
+    lock_guard _(mut_);
+    return bytes_used_;
 }

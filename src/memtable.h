@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <utility>
@@ -20,8 +21,20 @@ public:
 
     std::vector<internal_key_value> query_range(const key_range& r) const; 
 
+    // todo: refactor
+    const auto& items() const
+    {
+        return map_;
+    }
+
+    std::uint64_t bytes_used() const noexcept;
+
 private:
     mutable std::mutex mut_;
+
+    std::uint64_t bytes_used_ = 0;
+    std::string key_min_;
+    std::string key_max_;
     std::map<internal_key, std::string, detail::key_cmp> map_;
 };
 
