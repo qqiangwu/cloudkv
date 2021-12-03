@@ -1,6 +1,6 @@
 #include <string_view>
 #include <gtest/gtest.h>
-#include "memtable.h"
+#include "memtable/memtable.h"
 
 using namespace std;
 using namespace cloudkv;
@@ -11,7 +11,7 @@ TEST(memtable, InsertOne)
 
     string_view key = "abc";
     string_view val = "val";
-    mt.add(key, val);
+    mt.add(key_type::value, key, val);
     auto r = mt.query(key);
     EXPECT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
@@ -23,14 +23,23 @@ TEST(memtable, Query)
 {
     memtable mt;
 
-    string_view key = "abc";
-    string_view val = "val";
-    mt.add(key, val);
+    const string_view key = "abc";
+    const string_view val = "val";
+    const string_view val2 = "val2";
+
+    mt.add(key_type::value, key, val);
     auto r = mt.query(key);
     EXPECT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
     EXPECT_EQ(r.value().key.type(), key_type::value); 
     EXPECT_EQ(r.value().value, val);
+
+    mt.add(key_type::value, key, val2);
+    r = mt.query(key);
+    EXPECT_TRUE(r);
+    EXPECT_EQ(r.value().key.user_key(), key);
+    EXPECT_EQ(r.value().key.type(), key_type::value); 
+    EXPECT_EQ(r.value().value, val2);
 }
 
 TEST(memtable, Delete)
@@ -39,18 +48,25 @@ TEST(memtable, Delete)
 
     string_view key = "abc";
     string_view val = "val";
-    mt.add(key, val);
+    mt.add(key_type::value, key, val);
     auto r = mt.query(key);
     EXPECT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
     EXPECT_EQ(r.value().key.type(), key_type::value); 
     EXPECT_EQ(r.value().value, val);
 
-    mt.remove(key);
+    mt.add(key_type::tombsome, key, "");
     
     r = mt.query(key);
     EXPECT_TRUE(r);
     EXPECT_EQ(r.value().key.type(), key_type::tombsome);
+
+    mt.add(key_type::value, key, val);
+    r = mt.query(key);
+    EXPECT_TRUE(r);
+    EXPECT_EQ(r.value().key.user_key(), key);
+    EXPECT_EQ(r.value().key.type(), key_type::value); 
+    EXPECT_EQ(r.value().value, val);
 }
 
 TEST(memtable, QueryRange)
@@ -60,7 +76,7 @@ TEST(memtable, QueryRange)
     memtable mt;
 
     for (int i = 0; i < N; ++i) {
-        mt.add(to_string(i), to_string(i));
+        mt.add(key_type::value, to_string(i), to_string(i));
     }
 
     auto r = mt.query_range({to_string(1), to_string(5)});
@@ -75,7 +91,7 @@ TEST(memtable, QueryRange)
     }
 
     for (int i = 0; i < N; i += 2) {
-        mt.remove(to_string(i));
+        mt.add(key_type::tombsome, to_string(i), "");
     }
 
     auto r3 = mt.query_range({to_string(0), to_string(N)});

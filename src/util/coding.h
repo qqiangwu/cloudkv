@@ -28,6 +28,8 @@ void PutFixed64(std::string* dst, uint64_t value);
 
 // Lower-level versions of Get... that read directly from a character buffer
 // without any bounds checking.
+void EncodeFixed32(char* buf, uint32_t value);
+void EncodeFixed64(char* buf, uint64_t value);
 
 inline uint32_t DecodeFixed32(const char* ptr) {
   if (kLittleEndian) {

@@ -5,8 +5,11 @@
 #include <string_view>
 #include <filesystem>
 #include <tuple>
+#include <boost/noncopyable.hpp>
 
 namespace cloudkv {
+
+using boost::noncopyable;
 
 using path_t = std::filesystem::path;
 using user_key_ref = std::string_view;
@@ -16,7 +19,7 @@ struct key_range {
     user_key_ref end;
 };
 
-enum class key_type {
+enum class key_type : std::uint32_t {
     value,
     tombsome
 };

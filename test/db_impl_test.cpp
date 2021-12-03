@@ -1,17 +1,59 @@
 #include <string_view>
+#include <filesystem>
+#include <stdexcept>
 #include <range/v3/view.hpp>
 #include <range/v3/action.hpp>
 #include <range/v3/algorithm.hpp>
 #include <gtest/gtest.h>
+#include "cloudkv/exception.h"
 #include "db_impl.h"
 
 using namespace std;
 using namespace cloudkv;
 using namespace ranges;
 
+namespace fs = std::filesystem;
+
+constexpr string_view db_name = "test";
+
+void remove_db()
+{
+    filesystem::remove_all(db_name);
+}
+
+struct Cleanup {
+    Cleanup()
+    {
+        remove_db();   
+    }
+};
+
+TEST(db, OpenOnly)
+{
+    Cleanup _;
+
+    options opts;
+    opts.open_only = true;
+    EXPECT_THROW(open(db_name, opts), std::invalid_argument);
+}
+
+TEST(db, BadDirStructure)
+{
+    Cleanup _;
+
+    const path_t db_path = db_name;
+    options opts;
+    EXPECT_TRUE(open(db_name, opts));
+
+    fs::remove_all(db_path / "meta");
+    EXPECT_THROW(open(db_name, opts), db_corrupted);
+}
+
 TEST(db, Basic)
 {
-    auto db = open("test", options());
+    Cleanup _;
+
+    auto db = open(db_name, options());
     EXPECT_TRUE(db);
 
     const string_view key = "123";
@@ -34,7 +76,9 @@ TEST(db, Basic)
 
 TEST(db, MultiInsert)
 {
-    auto db = open("test", options());
+    Cleanup _;
+
+    auto db = open(db_name, options());
     EXPECT_TRUE(db);
 
     auto raw_keys = views::ints(0, 1000);
@@ -54,15 +98,49 @@ TEST(db, MultiInsert)
 
 TEST(db, Checkpoint)
 {
+    Cleanup _;
+
     options opts;
     opts.write_buffer_size = 1024;
-    auto db = open("test", opts);
+    auto db = open(db_name, opts);
 
     for (int i = 0; i < opts.write_buffer_size; ++i) {
         db->batch_add({
             { "key-" + std::to_string(i), "val-" + std::to_string(i) }
         });
     }
+
+    for (int i = 0; i < opts.write_buffer_size; ++i) {
+        auto r = db->query("key-" + std::to_string(i));
+        EXPECT_TRUE(r);
+        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+    }
+}
+
+TEST(db, Persistent)
+{
+    Cleanup _;
+
+    options opts;
+    opts.write_buffer_size = 1024;
+    auto db = open(db_name, opts);
+
+    for (int i = 0; i < opts.write_buffer_size; ++i) {
+        db->batch_add({
+            { "key-" + std::to_string(i), "val-" + std::to_string(i) }
+        });
+    }
+
+    for (int i = 0; i < opts.write_buffer_size; ++i) {
+        auto r = db->query("key-" + std::to_string(i));
+        EXPECT_TRUE(r);
+        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+    }
+
+    static_cast<db_impl*>(db.get())->TEST_flush();
+    
+    db.reset();
+    db = open(db_name, opts);
 
     for (int i = 0; i < opts.write_buffer_size; ++i) {
         auto r = db->query("key-" + std::to_string(i));

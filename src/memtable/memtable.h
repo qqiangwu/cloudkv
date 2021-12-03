@@ -13,9 +13,7 @@ namespace cloudkv {
 
 class memtable {
 public:
-    void add(user_key_ref key, std::string_view value);
-
-    void remove(user_key_ref key);
+    void add(key_type op, user_key_ref key, std::string_view value);
 
     std::optional<internal_key_value> query(user_key_ref key) const;
 

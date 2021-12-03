@@ -16,7 +16,6 @@ struct key_value {
 
 struct options {
     bool open_only = false;
-    bool create_if_not_exist = true;
     std::uint64_t write_buffer_size = 4 * 1024 * 1024;
 };
 

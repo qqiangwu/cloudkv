@@ -4,15 +4,7 @@
 using namespace std;
 using namespace cloudkv;
 
-void memtable::add(user_key_ref key, string_view value)
-{
-    lock_guard _(mut_);
-
-    map_.emplace(internal_key{key, key_type::value}, value);
-    bytes_used_ += key.size() + value.size();
-}
-
-void memtable::remove(user_key_ref key)
+void memtable::add(key_type op, user_key_ref key, string_view value)
 {
     lock_guard _(mut_);
 
@@ -23,7 +15,7 @@ void memtable::remove(user_key_ref key)
         map_.erase(it);
     }
 
-    map_.emplace(internal_key{key, key_type::tombsome}, "");
+    map_.emplace(internal_key{key, op}, value);
     bytes_used_ += key.size();
 }
 

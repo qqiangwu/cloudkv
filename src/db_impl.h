@@ -3,8 +3,9 @@
 #include <mutex>
 #include <boost/thread/executors/basic_thread_pool.hpp>
 #include "cloudkv/db.h"
+#include "memtable/memtable.h"
+#include "memtable/redolog.h"
 #include "meta.h"
-#include "memtable.h"
 
 namespace cloudkv {
 
@@ -23,7 +24,21 @@ public:
         std::string_view end_key, 
         int count = 128) override;
 
+public:
+    // for tests
+    void TEST_flush();
+
 private:
+    // helpers
+    path_t next_redo_name_() const;
+
+private:
+    void store_meta_(const meta& meta);
+    meta load_meta_();
+
+private:
+    void write_(const write_batch& batch);
+
     struct write_ctx {
         memtable_ptr memtable;
     };
@@ -42,17 +57,23 @@ private:
     void do_checkpoint_impl_();
     void on_checkpoint_done_(sstable_ptr sst);
 
+    void try_gc_() noexcept;
+
 private:
+    const path_t cwd_;
     const options options_;
 
-    boost::basic_thread_pool checkpoint_worker_;
-    boost::basic_thread_pool compaction_worker_;
-
-    std::mutex mut_;
-
+    std::mutex sys_mut_;  // for meta mutation
+    std::mutex mut_;      // for db state
     meta meta_;
+
+    std::mutex tx_mut_;   // for kv write operation
+    redolog_ptr redolog_;
     memtable_ptr active_memtable_;
     memtable_ptr immutable_memtable_;
+
+    boost::basic_thread_pool compaction_worker_;
+    boost::basic_thread_pool checkpoint_worker_;
 };
 
 }

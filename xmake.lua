@@ -4,7 +4,7 @@ set_warnings("all", "error")
 set_languages("c++17")
 set_optimize("faster")
 
-add_requires("boost 1.76.0", { configs = { thread = true } })
+add_requires("boost 1.76.0", { configs = { thread = true, serialization = true } })
 add_requires("fmt 8.0.1")
 add_requires("spdlog v1.9.1", { config = { fmt_external = true } })
 add_requires("abseil 20210324.2")
