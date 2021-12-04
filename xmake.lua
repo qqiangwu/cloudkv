@@ -2,7 +2,6 @@ add_rules("mode.debug", "mode.release")
 
 set_warnings("all", "error")
 set_languages("c++17")
-set_optimize("faster")
 
 package("scope_guard")
 	add_urls("https://github.com/Neargye/scope_guard.git")

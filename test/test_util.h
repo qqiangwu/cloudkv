@@ -19,7 +19,10 @@ struct DBCleaner
     }
 };
 
-void create_file(const fs::path& p)
+void create_file(const fs::path& p, const std::string& data = {})
 {
     std::ofstream ofs(p);
+
+    ofs.write(data.data(), data.size());
+    EXPECT_TRUE(ofs);
 }

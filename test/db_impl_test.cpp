@@ -79,20 +79,27 @@ TEST(db, MultiInsert)
     Cleanup _;
 
     auto db = open(db_name, options());
-    EXPECT_TRUE(db);
+    ASSERT_TRUE(db);
 
     auto raw_keys = views::ints(0, 1000);
-    auto keys = raw_keys | views::transform([](int i){ return std::to_string(i); }) | to<std::vector>() | actions::sort;
-    auto key_values = keys | views::transform([](const auto& k){
-        return key_value{k, "val-" + k};
-    }) | to<std::vector>();
+    auto keys = raw_keys 
+        | views::transform([](int i){ return std::to_string(i); }) 
+        | to<std::vector>()
+        | actions::sort;
+    auto key_values = keys 
+        | views::transform([](const auto& k){
+            return std::make_tuple(k, "val-" + k);
+        })
+        | to<std::vector>();
 
-    db->batch_add(key_values);
+    db->batch_add(key_values | views::transform([](const auto& kv){
+        return key_value{ std::get<0>(kv), std::get<1>(kv) };
+    }) | to<std::vector>());
 
     for (const auto& [key, val]: key_values) {
         const auto r = db->query(key);
-        EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), val);
+        ASSERT_TRUE(r);
+        ASSERT_EQ(r.value(), val);
     }
 }
 

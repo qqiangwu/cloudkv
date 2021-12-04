@@ -53,9 +53,11 @@ private:
     void try_schedule_checkpoint_() noexcept;
 
     void try_checkpoint_() noexcept;
+    void try_compaction_() noexcept;
     void try_gc_() noexcept;
 
     void on_checkpoint_done_(sstable_ptr sst);
+    void on_compaction_done_(const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed);
 
 private:
     const options options_;

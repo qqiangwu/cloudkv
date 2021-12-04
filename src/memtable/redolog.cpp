@@ -34,7 +34,7 @@ void redolog::write(const write_batch& batch)
         encode_str(&buf_, key);
         encode_str(&buf_, value);
 
-        EncodeFixed32(buf_.data() + old_size, header_size);
+        EncodeFixed32(buf_.data() + old_size, buf_.size() - old_size - header_size);
     }
 
     out_.write(buf_.data(), buf_.size());

@@ -9,6 +9,7 @@
 #include <boost/archive/text_oarchive.hpp>
 #include "cloudkv/exception.h"
 #include "db_impl.h"
+#include "replayer.h"
 #include "util/fmt_std.h"
 #include "task/gc_task.h"
 #include "task/checkpoint_task.h"
@@ -48,8 +49,16 @@ db_impl::db_impl(std::string_view name, const options& opts)
     meta_ = load_meta_();
 
     // todo: replay
+    auto replay_res = replayer(db_path_, meta_.committed_lsn).replay();
+    if (replay_res.replayed_lsn > meta_.committed_lsn) {
+        auto& sst = replay_res.sstables;
+        meta_.committed_lsn = replay_res.replayed_lsn;
+        meta_.sstables.insert(meta_.sstables.end(), sst.begin(), sst.end());
+        store_meta_(meta_);
+        try_gc_();
+    }
 
-
+    meta_.next_lsn = meta_.committed_lsn + 1;
     redolog_ = std::make_shared<redolog>(db_path_.redo_path(meta_.next_lsn));
     ++meta_.next_lsn;
 }
