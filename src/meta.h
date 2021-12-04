@@ -24,7 +24,7 @@ struct raw_meta {
 
 }
 
-struct meta {
+struct metainfo {
     std::uint64_t committed_lsn = 0;
     std::uint64_t next_lsn = 1;
     std::vector<sstable_ptr> sstables;
@@ -42,9 +42,9 @@ struct meta {
         return raw;
     }
 
-    static meta from_raw(const detail::raw_meta& raw)
+    static metainfo from_raw(const detail::raw_meta& raw)
     {
-        meta m;
+        metainfo m;
 
         m.committed_lsn = raw.committed_lsn;
         m.next_lsn = m.committed_lsn + 1;

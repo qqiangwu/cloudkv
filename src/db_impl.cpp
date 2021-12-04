@@ -15,50 +15,41 @@
 
 using namespace cloudkv;
 
-namespace {
-
-constexpr std::string_view meta_file = "meta";
-constexpr std::string_view redo_dir = "redo";
-constexpr std::string_view sst_dir = "sst";
-
-}
-
 namespace fs = std::filesystem;
 
 db_impl::db_impl(std::string_view name, const options& opts)
-    : cwd_(name),
-      options_(opts),
+    : options_(opts),
+      db_path_(name),
       active_memtable_(std::make_shared<memtable>()),
       compaction_worker_(1),
       checkpoint_worker_(1)
 {
-    const auto db_exists = fs::exists(cwd_);
+    const auto db_exists = fs::exists(db_path_.db());
 
     if (opts.open_only && !db_exists) {
         throw std::invalid_argument{
-            fmt::format("open db in open only mode, but {} not exist", cwd_)
+            fmt::format("open db in open only mode, but {} not exist", db_path_.db())
         };
     }
 
     if (!db_exists) {
-        fs::create_directory(cwd_);
-        fs::create_directory(cwd_ / redo_dir);
-        fs::create_directory(cwd_ / sst_dir);
+        fs::create_directory(db_path_.db());
+        fs::create_directory(db_path_.redo_dir());
+        fs::create_directory(db_path_.sst_dir());
 
-        store_meta_(meta{});
+        store_meta_(metainfo{});
     }
 
-    if (!fs::is_regular_file(cwd_ / meta_file)) {
-        throw db_corrupted{ fmt::format("invalid db {}, no meta file found", cwd_) };
+    if (!fs::is_regular_file(db_path_.meta_info())) {
+        throw db_corrupted{ fmt::format("invalid db {}, no meta file found", db_path_.db()) };
     }
     
-    // todo: load meta
     meta_ = load_meta_();
 
     // todo: replay
 
 
-    redolog_ = std::make_shared<redolog>(next_redo_name_());
+    redolog_ = std::make_shared<redolog>(db_path_.redo_path(meta_.next_lsn));
     ++meta_.next_lsn;
 }
 
@@ -138,14 +129,9 @@ void db_impl::TEST_flush()
     spdlog::warn("active flushed");
 }
 
-path_t db_impl::next_redo_name_() const
+void db_impl::store_meta_(const metainfo& meta)
 {
-    return cwd_ / "redo" / std::to_string(meta_.next_lsn);
-}
-
-void db_impl::store_meta_(const meta& meta)
-{
-    const auto mf = cwd_ / meta_file;
+    const auto mf = db_path_.meta_info();
     std::ofstream ofs(mf);
     if (!ofs) {
         throw_system_error(fmt::format("store meta {} failed", mf));
@@ -155,19 +141,18 @@ void db_impl::store_meta_(const meta& meta)
     oa << meta.to_raw();
 }
 
-cloudkv::meta db_impl::load_meta_()
+metainfo db_impl::load_meta_()
 try {
-    const auto mf = cwd_ / meta_file;
-    std::ifstream ifs(mf);
+    std::ifstream ifs(db_path_.meta_info());
     if (!ifs) {
-        throw_system_error(fmt::format("open meta {} failed", mf));
+        throw_system_error(fmt::format("open meta {} failed", db_path_.meta_info()));
     }
 
     boost::archive::text_iarchive ia(ifs);
     detail::raw_meta raw;
     ia >> raw;
 
-    return cloudkv::meta::from_raw(raw);
+    return metainfo::from_raw(raw);
 } catch (boost::archive::archive_exception& e) {
     throw db_corrupted{ fmt::format("db corrupted: {}", e.what()) };
 }
@@ -231,7 +216,7 @@ void db_impl::try_schedule_checkpoint_() noexcept
         }
 
         auto new_memtable = std::make_shared<memtable>();
-        auto new_redo = std::make_shared<redolog>(next_redo_name_());
+        auto new_redo = std::make_shared<redolog>(db_path_.redo_path(meta_.next_lsn));
 
         // commit
         swap(immutable_memtable_, active_memtable_);
@@ -274,7 +259,7 @@ void db_impl::do_checkpoint_impl_()
     using namespace fmt;
     using namespace std::chrono;
 
-    const auto sst_path = cwd_ / sst_dir / format("sst.{}", steady_clock::now().time_since_epoch().count());
+    const auto sst_path = db_path_.sst_path(steady_clock::now().time_since_epoch().count());
     const auto memtable = get_read_ctx_().memtables[1];
     
     std::ofstream ofs(sst_path, std::ios::binary);
@@ -325,7 +310,7 @@ try {
         return meta_.committed_lsn;
     }();
 
-    for (const auto& p: std::filesystem::directory_iterator(cwd_ / redo_dir)) {
+    for (const auto& p: std::filesystem::directory_iterator(db_path_.redo_dir())) {
         const std::string_view raw = p.path().filename().native();
         std::uint64_t lsn;
         const auto r = std::from_chars(raw.begin(), raw.end(), lsn);

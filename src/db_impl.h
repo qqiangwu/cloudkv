@@ -6,6 +6,7 @@
 #include "memtable/memtable.h"
 #include "memtable/redolog.h"
 #include "meta.h"
+#include "path_conf.h"
 
 namespace cloudkv {
 
@@ -29,12 +30,10 @@ public:
     void TEST_flush();
 
 private:
-    // helpers
-    path_t next_redo_name_() const;
 
 private:
-    void store_meta_(const meta& meta);
-    meta load_meta_();
+    void store_meta_(const metainfo& meta);
+    metainfo load_meta_();
 
 private:
     void write_(const write_batch& batch);
@@ -60,18 +59,19 @@ private:
     void try_gc_() noexcept;
 
 private:
-    const path_t cwd_;
     const options options_;
+    const path_conf db_path_;
 
     std::mutex sys_mut_;  // for meta mutation
     std::mutex mut_;      // for db state
-    meta meta_;
+    metainfo meta_;
 
     std::mutex tx_mut_;   // for kv write operation
     redolog_ptr redolog_;
     memtable_ptr active_memtable_;
     memtable_ptr immutable_memtable_;
 
+    boost::basic_thread_pool bg_worker;
     boost::basic_thread_pool compaction_worker_;
     boost::basic_thread_pool checkpoint_worker_;
 };
