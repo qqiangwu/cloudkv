@@ -2,7 +2,6 @@
 #include <chrono>
 #include <thread>
 #include <filesystem>
-#include <charconv>
 #include <fmt/core.h>
 #include <range/v3/view.hpp>
 #include <spdlog/spdlog.h>
@@ -12,6 +11,7 @@
 #include "db_impl.h"
 #include "sstable/sstable_builder.h"
 #include "util/fmt_std.h"
+#include "task/gc_task.h"
 
 using namespace cloudkv;
 
@@ -310,23 +310,10 @@ try {
         return meta_.committed_lsn;
     }();
 
-    for (const auto& p: std::filesystem::directory_iterator(db_path_.redo_dir())) {
-        const std::string_view raw = p.path().filename().native();
-        std::uint64_t lsn;
-        const auto r = std::from_chars(raw.begin(), raw.end(), lsn);
-        if (r.ec == std::errc::invalid_argument) {
-            spdlog::error("[gc] invalid redolog {} found, remove it", p.path());
-            std::filesystem::remove(p.path());
-            continue;
-        }
+    auto task = std::make_unique<gc_task>(db_path_, committed_lsn);
 
-        if (lsn > committed_lsn) {
-            continue;
-        }
-
-        spdlog::info("[gc] remove legacy redo {}, committed_lsn={}", p.path(), committed_lsn);
-        std::filesystem::remove(p.path());
-    }
+    // ignore result
+    task_mgr_.submit(std::move(task));
 } catch (std::exception& e) {
     spdlog::warn("gc failed: {}", e.what());
 }

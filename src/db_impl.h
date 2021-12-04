@@ -5,6 +5,7 @@
 #include "cloudkv/db.h"
 #include "memtable/memtable.h"
 #include "memtable/redolog.h"
+#include "task/task_manager.h"
 #include "meta.h"
 #include "path_conf.h"
 
@@ -71,9 +72,9 @@ private:
     memtable_ptr active_memtable_;
     memtable_ptr immutable_memtable_;
 
-    boost::basic_thread_pool bg_worker;
     boost::basic_thread_pool compaction_worker_;
     boost::basic_thread_pool checkpoint_worker_;
+    task_manager task_mgr_;
 };
 
 }
