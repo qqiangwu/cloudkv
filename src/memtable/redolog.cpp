@@ -38,6 +38,7 @@ void redolog::write(const write_batch& batch)
     }
 
     out_.write(buf_.data(), buf_.size());
+    out_.flush();
 }
 
 void redolog::flush()

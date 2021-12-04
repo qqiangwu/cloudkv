@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <mutex>
 #include <boost/thread/executors/basic_thread_pool.hpp>
 #include "cloudkv/db.h"
@@ -59,6 +60,8 @@ private:
     void on_checkpoint_done_(sstable_ptr sst);
     void on_compaction_done_(const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed);
 
+    bool need_compaction_();
+
 private:
     const options options_;
     const path_conf db_path_;
@@ -73,6 +76,8 @@ private:
     memtable_ptr immutable_memtable_;
 
     task_manager task_mgr_;
+
+    std::atomic_flag compaction_running_ = ATOMIC_FLAG_INIT;
 };
 
 }

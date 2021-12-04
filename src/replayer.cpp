@@ -8,8 +8,9 @@
 #include "replayer.h"
 #include "util/fmt_std.h"
 #include "cloudkv/exception.h"
-#include "sstable/sstable_builder.h"
 #include "memtable/redolog_reader.h"
+#include "memtable/memtable.h"
+#include "task/checkpoint_task.h"
 
 using namespace cloudkv;
 using namespace ranges;
@@ -33,27 +34,27 @@ replay_result replayer::replay()
     }
     
     auto redolog_need_replay = redologs
-    | views::transform([](const auto& p){
-        const std::string_view raw = p.filename().native();
-        std::uint64_t lsn;
-        const auto r = std::from_chars(raw.begin(), raw.end(), lsn);
-        if (r.ec == std::errc::invalid_argument) {
-            spdlog::warn("invalid redolog {} found, ignored for safety", p);
-            return redo_ctx { {}, 0 };
-        }
+        | views::transform([](const auto& p){
+            const std::string_view raw = p.filename().native();
+            std::uint64_t lsn;
+            const auto r = std::from_chars(raw.begin(), raw.end(), lsn);
+            if (r.ec == std::errc::invalid_argument) {
+                spdlog::warn("invalid redolog {} found, ignored for safety", p);
+                return redo_ctx { {}, 0 };
+            }
 
-        return redo_ctx { p, lsn };
-    }) 
-    | views::filter([committed_lsn = committed_lsn_](const redo_ctx& ctx){
-        return ctx.lsn > committed_lsn;
-    })
-    | views::filter([](const redo_ctx& ctx){
-        return fs::file_size(ctx.path) > 0;
-    })
-    | to<std::vector>() 
-    | actions::sort([](const auto& x, const auto& y){
-        return x.lsn < y.lsn;
-    });
+            return redo_ctx { p, lsn };
+        }) 
+        | views::filter([committed_lsn = committed_lsn_](const redo_ctx& ctx){
+            return ctx.lsn > committed_lsn;
+        })
+        | views::filter([](const redo_ctx& ctx){
+            return fs::file_size(ctx.path) > 0;
+        })
+        | to<std::vector>() 
+        | actions::sort([](const auto& x, const auto& y){
+            return x.lsn < y.lsn;
+        });
 
     replay_result res = { committed_lsn_ };
 
@@ -73,28 +74,21 @@ replay_result replayer::replay()
 sstable_ptr replayer::do_replay_(const path_t& redopath)
 {
     redolog_reader reader(redopath);
-    auto sstpath = db_path_.next_sst_path();
-    std::ofstream ofs(sstpath, std::ios::binary);
-    if (!ofs) {
-        throw db_corrupted{ fmt::format("cannot write sst file {}", sstpath) };
-    }
-
-    sstable_builder builder(ofs);
-    int num_records = 0;
-
+    auto mt = std::make_shared<memtable>();
     while (auto entry = reader.next()) {
         const auto& logentry = entry.value();
 
-        builder.add(internal_key{ logentry.key, logentry.op }, logentry.value);
-
-        ++num_records;
+        mt->add(logentry.op, logentry.key, logentry.value);
     }
 
-    if (!num_records) {
+    if (mt->bytes_used() == 0) {
         return nullptr;
     }
 
-    builder.done();
+    sstable_ptr result;
+    checkpoint_task(db_path_, std::move(mt), [&result](const auto& sst){
+        result = sst;
+    }).run();
 
-    return std::make_shared<sstable>(sstpath);
+    return result;
 } 

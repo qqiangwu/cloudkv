@@ -16,29 +16,30 @@ TEST(db_recover, Replay)
     DBCleaner _(db_root);
 
     options opts;
-    opts.write_buffer_size = 1024;
+    opts.write_buffer_size = 512;
+    const auto key_count = opts.write_buffer_size * 4;
 
-    auto db = open(test_db, opts);
+    auto db = open(db_root.native(), opts);
     ASSERT_TRUE(db);
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (int i = 0; i < key_count; ++i) {
         db->batch_add({
             { "key-" + std::to_string(i), "val-" + std::to_string(i) }
         });
     }
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (int i = 0; i < key_count; ++i) {
         auto r = db->query("key-" + std::to_string(i));
-        EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+        ASSERT_TRUE(r);
+        ASSERT_EQ(r.value(), "val-" + std::to_string(i)); 
     }
 
     db.reset();
-    db = open(test_db, opts);
+    db = open(db_root.native(), opts);
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (int i = 0; i < key_count; ++i) {
         auto r = db->query("key-" + std::to_string(i));
-        EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+        ASSERT_TRUE(r);
+        ASSERT_EQ(r.value(), "val-" + std::to_string(i)); 
     }
 }

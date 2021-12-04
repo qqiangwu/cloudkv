@@ -4,6 +4,7 @@
 #include "cloudkv/exception.h"
 #include "sstable/format.h"
 #include "sstable/sstable_builder.h"
+#include "util/fmt_std.h"
 
 using namespace std;
 using namespace cloudkv;
@@ -12,6 +13,22 @@ using namespace leveldb;
 sstable_builder::sstable_builder(std::ostream& out)
     : out_(out)
 {
+    if (!out_) {
+        throw_system_error(fmt::format("create sst failed"));
+    }
+
+    out_.exceptions(std::ios::failbit | std::ios::badbit);
+}
+
+sstable_builder::sstable_builder(const path_t& p)
+    : path_(p),
+      buf_(std::make_unique<std::ofstream>(p, std::ios::binary)),
+      out_(*buf_.get())
+{
+    if (!out_) {
+        throw_system_error(fmt::format("create sst {} failed", path_));
+    }
+
     out_.exceptions(std::ios::failbit | std::ios::badbit);
 }
 
@@ -39,6 +56,8 @@ void sstable_builder::add(const internal_key& key, std::string_view value)
     if (!out_) {
         throw_system_error("add key value failed");
     }
+
+    size_in_bytes_ += record.size();
 }
 
 void sstable_builder::done()

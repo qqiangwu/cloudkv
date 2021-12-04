@@ -53,6 +53,8 @@ sstable::sstable(const path_t& file)
     } catch (std::invalid_argument&) {
         throw data_corrupted{ fmt::format("sst {} footer is of bad format", file) };
     }
+
+    size_in_bytes_ = fsize;
 }
 
 optional<internal_key_value> sstable::query(user_key_ref key)

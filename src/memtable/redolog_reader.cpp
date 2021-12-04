@@ -41,8 +41,8 @@ std::optional<redo_entry> redolog_reader::next()
         std::string_view sv = buf;
         sv.remove_prefix(sizeof(op));
         
-        buf = decode_str(buf, &key);
-        buf = decode_str(buf, &val);
+        sv = decode_str(sv, &key);
+        sv = decode_str(sv, &val);
 
         return redo_entry{ std::move(key), std::move(val), key_type(op) };
     } catch (std::invalid_argument&) {
