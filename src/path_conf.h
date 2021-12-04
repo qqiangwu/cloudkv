@@ -19,7 +19,7 @@ public:
           sst_dir_(p / SST_DIR)
     {}
 
-    const path_t& db() const
+    const path_t& root() const
     {
         return db_path_;
     }

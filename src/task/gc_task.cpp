@@ -17,8 +17,7 @@ void gc_task::run()
         std::uint64_t lsn;
         const auto r = std::from_chars(raw.begin(), raw.end(), lsn);
         if (r.ec == std::errc::invalid_argument) {
-            spdlog::error("[gc] invalid redolog {} found, remove it", p.path());
-            std::filesystem::remove(p.path());
+            spdlog::warn("[gc] invalid redolog {} found, ignored for safety", p.path());
             continue;
         }
 

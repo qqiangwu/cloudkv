@@ -24,16 +24,16 @@ db_impl::db_impl(std::string_view name, const options& opts)
       compaction_worker_(1),
       checkpoint_worker_(1)
 {
-    const auto db_exists = fs::exists(db_path_.db());
+    const auto db_exists = fs::exists(db_path_.root());
 
     if (opts.open_only && !db_exists) {
         throw std::invalid_argument{
-            fmt::format("open db in open only mode, but {} not exist", db_path_.db())
+            fmt::format("open db in open only mode, but {} not exist", db_path_.root())
         };
     }
 
     if (!db_exists) {
-        fs::create_directory(db_path_.db());
+        fs::create_directory(db_path_.root());
         fs::create_directory(db_path_.redo_dir());
         fs::create_directory(db_path_.sst_dir());
 
@@ -41,7 +41,7 @@ db_impl::db_impl(std::string_view name, const options& opts)
     }
 
     if (!fs::is_regular_file(db_path_.meta_info())) {
-        throw db_corrupted{ fmt::format("invalid db {}, no meta file found", db_path_.db()) };
+        throw db_corrupted{ fmt::format("invalid db {}, no meta file found", db_path_.root()) };
     }
     
     meta_ = load_meta_();
