@@ -18,6 +18,8 @@ using namespace std::chrono_literals;
 
 namespace fs = std::filesystem;
 
+using std::nullopt;
+
 db_impl::db_impl(std::string_view name, const options& opts)
     : options_(opts),
       db_path_(name),
@@ -59,18 +61,18 @@ std::optional<std::string> db_impl::query(std::string_view key)
     for (const auto& memtable: ctx.memtables) {
         auto r = memtable->query(key);
         if (r) {
-            return r.value().key.is_deleted()? nullptr: std::optional(std::move(r.value().value));
+            return r.value().key.is_deleted()? nullopt: std::optional(std::move(r.value().value));
         }
     }
 
     for (const auto& sst: ctx.sstables) {
         auto r = sst->query(key);
         if (r) {
-            return r.value().key.is_deleted()? nullptr: std::optional(std::move(r.value().value));
+            return r.value().key.is_deleted()? nullopt: std::optional(std::move(r.value().value));
         }
     }
 
-    return std::nullopt;
+    return nullopt;
 }
 
 void db_impl::batch_add(const std::vector<key_value>& key_values)
