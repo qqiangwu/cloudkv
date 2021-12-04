@@ -9,20 +9,19 @@
 #include <boost/archive/text_oarchive.hpp>
 #include "cloudkv/exception.h"
 #include "db_impl.h"
-#include "sstable/sstable_builder.h"
 #include "util/fmt_std.h"
 #include "task/gc_task.h"
+#include "task/checkpoint_task.h"
 
 using namespace cloudkv;
+using namespace std::chrono_literals;
 
 namespace fs = std::filesystem;
 
 db_impl::db_impl(std::string_view name, const options& opts)
     : options_(opts),
       db_path_(name),
-      active_memtable_(std::make_shared<memtable>()),
-      compaction_worker_(1),
-      checkpoint_worker_(1)
+      active_memtable_(std::make_shared<memtable>())
 {
     const auto db_exists = fs::exists(db_path_.root());
 
@@ -118,9 +117,10 @@ void db_impl::TEST_flush()
     {
         std::lock_guard _(mut_);
         std::swap(immutable_memtable_, active_memtable_);
-        if (immutable_memtable_) {
-            issue_checkpoint_();
-        }
+    }
+
+    if (!checkpoint_done()) {
+        try_checkpoint_();
     }
 
     while (!checkpoint_done()) {
@@ -226,52 +226,30 @@ void db_impl::try_schedule_checkpoint_() noexcept
         spdlog::info("checkpoint issued");
     }
 
-    issue_checkpoint_();
+    try_checkpoint_();
 }
 
-void db_impl::issue_checkpoint_() noexcept
+void db_impl::try_checkpoint_() noexcept
 try {
-    checkpoint_worker_.submit([this]{
-        do_checkpoint_();
+    auto memtable = [this]{
+        std::lock_guard _(mut_);
+        return immutable_memtable_;
+    }();
+    auto task = std::make_unique<checkpoint_task>(db_path_, memtable, [this](sstable_ptr sst){
+        on_checkpoint_done_(sst);
     });
-} catch (boost::sync_queue_is_closed&) {
-    spdlog::warn("checkpoint worker is closed, stop checkpoint");
+
+    // ignore result
+    task_mgr_.submit(std::move(task), [this](const std::exception& e) noexcept {
+        spdlog::warn("run checkpoint task failed [{}], reschedule after for 1s", e.what());
+        std::this_thread::sleep_for(1s);
+        try_checkpoint_();
+    });
 } catch (std::exception& e) {
     spdlog::critical("(exit) submit checkpoint task failed: {}", e.what());
 
+    // terminate now to avoid complicated retry logic
     std::terminate();
-}
-
-// bg task
-void db_impl::do_checkpoint_() noexcept
-try {
-    do_checkpoint_impl_();
-} catch (std::exception& e) {
-    spdlog::warn("run checkpoint task failed: {}, sleep for 1s", e.what());
-
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(1s);
-    issue_checkpoint_();
-}
-
-void db_impl::do_checkpoint_impl_()
-{
-    using namespace fmt;
-    using namespace std::chrono;
-
-    const auto sst_path = db_path_.sst_path(steady_clock::now().time_since_epoch().count());
-    const auto memtable = get_read_ctx_().memtables[1];
-    
-    std::ofstream ofs(sst_path, std::ios::binary);
-    sstable_builder builder(ofs);
-
-    for (const auto& [k, v]: memtable->items()) {
-        builder.add(k, v);
-    }
-
-    builder.done();
-
-    on_checkpoint_done_(std::make_shared<sstable>(sst_path));
 }
 
 void db_impl::on_checkpoint_done_(sstable_ptr sst)

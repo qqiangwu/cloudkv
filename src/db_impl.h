@@ -52,12 +52,10 @@ private:
 
     void try_schedule_checkpoint_() noexcept;
 
-    void issue_checkpoint_() noexcept;
-    void do_checkpoint_() noexcept;
-    void do_checkpoint_impl_();
-    void on_checkpoint_done_(sstable_ptr sst);
-
+    void try_checkpoint_() noexcept;
     void try_gc_() noexcept;
+
+    void on_checkpoint_done_(sstable_ptr sst);
 
 private:
     const options options_;
@@ -72,8 +70,6 @@ private:
     memtable_ptr active_memtable_;
     memtable_ptr immutable_memtable_;
 
-    boost::basic_thread_pool compaction_worker_;
-    boost::basic_thread_pool checkpoint_worker_;
     task_manager task_mgr_;
 };
 

@@ -21,7 +21,7 @@ task_manager::~task_manager()
     tasks_.clear();
 }
 
-bool task_manager::submit(task_ptr task)
+bool task_manager::submit(task_ptr task, error_handler handler)
 {
     std::lock_guard _(mut_);
 
@@ -31,21 +31,28 @@ bool task_manager::submit(task_ptr task)
     };
 
     try {
-        worker_.submit([&task = *iter, this]{
-            run_task_(task);
+        worker_.submit([ctx = task_ctx{ *iter, std::move(handler) }, this]{
+            run_task_(ctx);
         });
 
         return true;
     } catch (boost::sync_queue_is_closed&) {
+        spdlog::warn("[task] task {} rejected because closed", task->name());
         return false;
     }
 }
 
-void task_manager::run_task_(const task_ptr& task) noexcept
+void task_manager::run_task_(const task_ctx& ctx) noexcept
 {
+    const auto& task = ctx.task;
+
     try {
         task->run();
     } catch (std::exception& e) {
+        if (ctx.handler) {
+            ctx.handler(e);
+        }
+
         spdlog::error("[task] run task {} failed: {}, ignored", task->name(), e.what());
     }
 
