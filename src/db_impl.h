@@ -19,12 +19,12 @@ public:
     std::optional<std::string> query(std::string_view key) override;
 
     void batch_add(const std::vector<key_value>& key_values) override;
-    
+
     void remove(std::string_view key) override;
-    
+
     std::map<std::string, std::string> query_range(
         std::string_view start_key,
-        std::string_view end_key, 
+        std::string_view end_key,
         int count = 128) override;
 
 public:
@@ -59,6 +59,13 @@ private:
 
     void on_checkpoint_done_(sstable_ptr sst);
     void on_compaction_done_(const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed);
+
+    struct meta_update_args {
+        const std::vector<sstable_ptr>& added;
+        const std::vector<sstable_ptr>& removed;
+        std::uint64_t committed_lsn;
+    };
+    void update_meta_(const meta_update_args&);
 
     bool need_compaction_();
 

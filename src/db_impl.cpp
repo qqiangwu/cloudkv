@@ -48,7 +48,7 @@ db_impl::db_impl(std::string_view name, const options& opts)
     if (!fs::is_regular_file(db_path_.meta_info())) {
         throw db_corrupted{ fmt::format("invalid db {}, no meta file found", db_path_.root()) };
     }
-    
+
     meta_ = load_meta_();
     spdlog::info("[startup] load meta: root={} committed_lsn={}", db_path_.root(), meta_.committed_lsn);
 
@@ -115,7 +115,7 @@ void db_impl::remove(std::string_view key)
 
 std::map<std::string, std::string> db_impl::query_range(
     std::string_view start_key,
-    std::string_view end_key, 
+    std::string_view end_key,
     int count)
 {
     return {};
@@ -146,7 +146,7 @@ void db_impl::TEST_flush()
 
     while (!checkpoint_done()) {
         std::this_thread::sleep_for(1ms);
-    } 
+    }
     spdlog::warn("active flushed");
 }
 
@@ -198,7 +198,7 @@ void db_impl::write_(const write_batch& writes)
         }
     }
 
-    try_schedule_checkpoint_(); 
+    try_schedule_checkpoint_();
 }
 
 db_impl::write_ctx db_impl::get_write_ctx_()
@@ -213,7 +213,7 @@ db_impl::read_ctx db_impl::get_read_ctx_()
 
     read_ctx ctx;
     ctx.memtables.push_back(active_memtable_);
-    
+
     if (immutable_memtable_) {
         ctx.memtables.push_back(immutable_memtable_);
     }
@@ -305,34 +305,25 @@ try {
 
 void db_impl::on_checkpoint_done_(sstable_ptr sst)
 {
+    std::vector<sstable_ptr> added { sst };
+    std::vector<sstable_ptr> removed;
+    const std::uint64_t committed_lsn = 1 + [this]{
+        std::lock_guard _(mut_);
+        return meta_.committed_lsn;
+    }();
+
+    meta_update_args args {
+        added,
+        removed,
+        committed_lsn
+    };
+    update_meta_(args);
+
+    // commit
+    using namespace std;
     memtable_ptr empty;
-    {
-        std::lock_guard _(sys_mut_);
-        auto meta = [this]{
-            std::lock_guard _(mut_);
-            return meta_;
-        }();
-
-        meta.sstables.push_back(sst);
-        meta.committed_lsn += 1;
-
-        spdlog::info("[meta] store, committed_lsn={}, sst={}", meta.committed_lsn, meta.sstables.size());
-        store_meta_(meta);
-
-        assert(meta.committed_lsn <= meta.next_lsn);
-
-        spdlog::info("checkpoint done, {} added", sst->path());
-
-        // commit
-        std::lock_guard __(mut_);
-        using namespace std;
-        swap(immutable_memtable_, empty);
-        swap(meta_.committed_lsn, meta.committed_lsn);
-        swap(meta_.sstables, meta.sstables);
-    }
-
-    try_gc_();
-    try_compaction_();
+    std::lock_guard __(mut_);
+    swap(immutable_memtable_, empty);
 }
 
 void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed)
@@ -341,6 +332,16 @@ void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const s
         compaction_running_.clear();
     };
 
+    meta_update_args args {
+        added,
+        removed,
+        0
+    };
+    update_meta_(args);
+}
+
+void db_impl::update_meta_(const meta_update_args& args)
+{
     {
         std::lock_guard _(sys_mut_);
         auto meta = [this]{
@@ -348,6 +349,8 @@ void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const s
             return meta_;
         }();
         auto& sstables = meta.sstables;
+        const auto& added = args.added;
+        const auto& removed = args.removed;
 
         // TODO: how to maintain sst orders?
         const auto old_sst_count = sstables.size();
@@ -373,7 +376,7 @@ void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const s
             const auto remove_to = remove_from + removed.size();
             if (!std::equal(remove_from, remove_to, removed.begin(), removed.end())) {
                 // code bug
-                throw std::logic_error{ "found unknown file after compaction" }; 
+                throw std::logic_error{ "found unknown file after compaction" };
             }
 
             std::vector<sstable_ptr> new_sstables;
@@ -381,8 +384,12 @@ void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const s
             new_sstables.insert(new_sstables.end(), sstables.begin(), remove_from);
             new_sstables.insert(new_sstables.end(), added.begin(), added.end());
             new_sstables.insert(new_sstables.end(), remove_to, sstables.end());
-            
+
             sstables.swap(new_sstables);
+        }
+
+        if (args.committed_lsn > meta.committed_lsn) {
+            meta.committed_lsn = args.committed_lsn;
         }
 
         spdlog::info("[meta] store, committed_lsn={}, sst={}", meta.committed_lsn, meta.sstables.size());
@@ -422,7 +429,7 @@ bool db_impl::need_compaction_()
 {
     std::lock_guard _(mut_);
     const auto& sstables = meta_.sstables;
-    
+
     if (sstables.size() < options_.compaction_water_mark) {
         return false;
     }
