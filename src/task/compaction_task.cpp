@@ -1,16 +1,11 @@
 #include <cstddef>
 #include <cassert>
-#include <chrono>
 #include <fstream>
 #include <queue>
-#include <range/v3/view.hpp>
-#include <range/v3/to_container.hpp>
 #include <spdlog/spdlog.h>
 #include "task/compaction_task.h"
 #include "sstable/sstable.h"
 #include "sstable/sstable_builder.h"
-#include "util/fmt_std.h"
-#include "util/iter_util.h"
 #include "cloudkv/exception.h"
 
 using namespace cloudkv;
@@ -80,10 +75,6 @@ auto to_priority_streams(const std::vector<sstable_ptr>& sstables)
 
 void compaction_task::run()
 {
-    using namespace fmt;
-    using namespace std::chrono;
-    using namespace ranges;
-
     auto sstables_to_compaction = choose_files_();
     if (sstables_to_compaction.empty()) {
         spdlog::info("[compaction] no sstables choosed for compaction");
