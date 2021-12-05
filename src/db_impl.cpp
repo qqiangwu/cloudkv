@@ -393,18 +393,24 @@ void db_impl::update_meta_(const meta_update_args& args)
             meta.committed_lsn = args.committed_lsn;
         }
 
+        assert(meta.committed_lsn <= meta.next_lsn);
+
+        // TODO atomicity with a lock in the middle
         spdlog::info("[meta] store, committed_lsn={}, sst={}", meta.committed_lsn, meta.sstables.size());
         store_meta_(meta);
 
-        assert(meta.committed_lsn <= meta.next_lsn);
+        // post commit
+        try {
+            spdlog::info("compaction done, old={} sst, new={} sst", old_sst_count, sstables.size());
 
-        spdlog::info("compaction done, old={} sst, new={} sst", old_sst_count, sstables.size());
-
-        // commit
-        std::lock_guard __(mut_);
-        using namespace std;
-        swap(meta_.committed_lsn, meta.committed_lsn);
-        swap(meta_.sstables, meta.sstables);
+            std::lock_guard __(mut_);
+            using namespace std;
+            swap(meta_.committed_lsn, meta.committed_lsn);
+            swap(meta_.sstables, meta.sstables);
+        } catch (std::exception& e) {
+            spdlog::critical("update memory failed after store_meta: {}, abort now", e.what());
+            std::terminate();
+        }
     }
 
     try_gc_();
