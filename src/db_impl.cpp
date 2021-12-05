@@ -13,6 +13,7 @@
 #include "db_impl.h"
 #include "replayer.h"
 #include "util/fmt_std.h"
+#include "util/strict_lock_guard.h"
 #include "task/gc_task.h"
 #include "task/checkpoint_task.h"
 #include "task/compaction_task.h"
@@ -320,15 +321,9 @@ void db_impl::on_checkpoint_done_(sstable_ptr sst)
     };
     update_meta_(args);
 
-    // post-commit
-    try {
-        memtable_ptr empty;
-        std::lock_guard _(mut_);
-        swap(immutable_memtable_, empty);
-    } catch (std::exception& e) {
-        spdlog::critical("clear immutable table failed: {}, abort now", e.what());
-        std::terminate();
-    }
+    memtable_ptr empty;
+    strict_lock_guard _(mut_);
+    swap(immutable_memtable_, empty);
 }
 
 void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed)
@@ -353,32 +348,17 @@ void db_impl::update_meta_(const meta_update_args& args)
         const auto& added = args.added;
         const auto& removed = args.removed;
 
-        // TODO: how to maintain sst orders?
         const auto old_sst_count = sstables.size();
         if (removed.empty()) {
             sstables.insert(sstables.end(), added.begin(), added.end());
         } else {
-            if (sstables.size() + added.size() < removed.size()) {
-                // code bug
-                throw std::logic_error{
-                    fmt::format("removed too many sstables: old={}, added={}, removed={}",
-                        old_sst_count,
-                        added.size(),
-                        removed.size())
-                };
-            }
+            assert(sstables.size() + added.size() > removed.size());
 
             const auto remove_from = ranges::find(sstables, removed[0]);
-            if (remove_from == sstables.end()) {
-                // code bug
-                throw std::logic_error{ "found unknown file after compaction" };
-            }
+            assert(remove_from != sstables.end());
 
             const auto remove_to = remove_from + removed.size();
-            if (!std::equal(remove_from, remove_to, removed.begin(), removed.end())) {
-                // code bug
-                throw std::logic_error{ "found unknown file after compaction" };
-            }
+            assert(std::equal(remove_from, remove_to, removed.begin(), removed.end()));
 
             std::vector<sstable_ptr> new_sstables;
             new_sstables.reserve(old_sst_count + added.size() - removed.size());
@@ -395,22 +375,15 @@ void db_impl::update_meta_(const meta_update_args& args)
 
         assert(meta.committed_lsn <= meta.next_lsn);
 
-        // TODO atomicity with a lock in the middle
         spdlog::info("[meta] store, committed_lsn={}, sst={}", meta.committed_lsn, meta.sstables.size());
         store_meta_(meta);
 
-        // post commit
-        try {
-            spdlog::info("compaction done, old={} sst, new={} sst", old_sst_count, sstables.size());
+        spdlog::info("compaction done, old={} sst, new={} sst", old_sst_count, sstables.size());
 
-            std::lock_guard __(mut_);
-            using namespace std;
-            swap(meta_.committed_lsn, meta.committed_lsn);
-            swap(meta_.sstables, meta.sstables);
-        } catch (std::exception& e) {
-            spdlog::critical("update memory failed after store_meta: {}, abort now", e.what());
-            std::terminate();
-        }
+        strict_lock_guard __(mut_);
+        using namespace std;
+        swap(meta_.committed_lsn, meta.committed_lsn);
+        swap(meta_.sstables, meta.sstables);
     }
 
     try_gc_();
