@@ -292,6 +292,7 @@ try {
     }();
     auto callback = [this](const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed){
         on_compaction_done_(added, removed);
+        compaction_running_.clear();
     };
     auto task = std::make_unique<compaction_task>(db_path_, options_, std::move(sstables), callback);
 
@@ -319,19 +320,19 @@ void db_impl::on_checkpoint_done_(sstable_ptr sst)
     };
     update_meta_(args);
 
-    // commit
-    using namespace std;
-    memtable_ptr empty;
-    std::lock_guard __(mut_);
-    swap(immutable_memtable_, empty);
+    // post-commit
+    try {
+        memtable_ptr empty;
+        std::lock_guard _(mut_);
+        swap(immutable_memtable_, empty);
+    } catch (std::exception& e) {
+        spdlog::critical("clear immutable table failed: {}, abort now", e.what());
+        std::terminate();
+    }
 }
 
 void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed)
 {
-    SCOPE_EXIT {
-        compaction_running_.clear();
-    };
-
     meta_update_args args {
         added,
         removed,
