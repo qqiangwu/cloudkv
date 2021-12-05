@@ -321,6 +321,7 @@ void db_impl::on_checkpoint_done_(sstable_ptr sst)
     };
     update_meta_(args);
 
+    // commit
     memtable_ptr empty;
     strict_lock_guard _(mut_);
     swap(immutable_memtable_, empty);
@@ -378,8 +379,8 @@ void db_impl::update_meta_(const meta_update_args& args)
         spdlog::info("[meta] store, committed_lsn={}, sst={}", meta.committed_lsn, meta.sstables.size());
         store_meta_(meta);
 
+        // commit
         spdlog::info("compaction done, old={} sst, new={} sst", old_sst_count, sstables.size());
-
         strict_lock_guard __(mut_);
         using namespace std;
         swap(meta_.committed_lsn, meta.committed_lsn);

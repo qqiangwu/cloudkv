@@ -34,3 +34,4 @@ target("cloudkv")
     add_packages("scope_guard")
 
 includes("test/")
+includes("util/")
