@@ -10,60 +10,67 @@
 #include "sstable/sstable.h"
 #include "sstable/sstable_builder.h"
 #include "util/fmt_std.h"
+#include "util/iter_util.h"
 #include "cloudkv/exception.h"
 
 using namespace cloudkv;
 
 namespace {
 
-struct compaction_source {
-    using iterator = std::vector<internal_key_value>::const_iterator;
+struct priority_stream {
+    std::shared_ptr<kv_iter> it;
+    internal_key_value kv;
+    int priority;
 
-    iterator beg;
-    iterator end;
-    int order;
-
-    user_key_ref key() const
+    priority_stream(iter_ptr iter, int priority_)
+        : it(std::move(iter)), kv(it->next()), priority(priority_)
     {
-        assert(beg != end);
-        return beg->key.user_key();
     }
 
     bool empty() const
     {
-        return beg == end;
+        return it->is_eof();
+    }
+
+    void advance()
+    {
+        kv = it->next();
+    }
+
+    std::string_view key() const
+    {
+        return kv.key.user_key();
+    }
+
+    const internal_key_value& key_value() const
+    {
+        return kv;
     }
 };
 
-struct compaction_source_cmp {
-    bool operator()(compaction_source& x, compaction_source& y) const
+struct stream_cmp {
+    bool operator()(priority_stream& x, priority_stream& y) const
     {
-        assert(x.beg != x.end);
-        assert(y.beg != y.end);
-
-        if (x.beg->key.user_key() == y.beg->key.user_key()) {
-            return x.order < y.order;
+        if (x.key() == y.key()) {
+            return x.priority < y.priority;
         }
 
-        return x.beg->key.user_key() > y.beg->key.user_key();
+        return x.key() > y.key();
     }
 };
 
-auto make_compaction_sources(const std::vector<std::vector<internal_key_value>>& sources)
+auto to_priority_streams(const std::vector<sstable_ptr>& sstables)
 {
-    std::priority_queue<compaction_source, std::vector<compaction_source>, compaction_source_cmp> 
+    std::priority_queue<priority_stream, std::vector<priority_stream>, stream_cmp>
         pq;
-    
-    for (size_t i = 0; i < sources.size(); ++i) {
-        if (sources[i].empty()) {
+
+    for (size_t i = 0; i < sstables.size(); ++i) {
+        if (sstables[i]->count() == 0) {
             continue;
         }
 
-        pq.push({
-            sources[i].begin(),
-            sources[i].end(),
-            int(i)
-        });
+        priority_stream stream { sstables[i]->iter(), int(i) };
+        pq.push(std::move(stream));
     }
 
     return pq;
@@ -84,30 +91,25 @@ void compaction_task::run()
         return;
     }
 
-    spdlog::info("[compaction] started, {} sst", sstables_.size());
-    std::vector<std::vector<internal_key_value>> raw_sources = sstables_to_compaction
-        | views::transform([](const auto& sst){
-            return sst->query_range(sst->min(), sst->max());
-        })
-        | to<std::vector>;
-    auto sources = make_compaction_sources(raw_sources);
+    spdlog::info("[compaction] started, {} sst", sstables_to_compaction.size());
+    auto streams = to_priority_streams(sstables_to_compaction);
     sstable_vec new_sstables;
 
     std::optional<std::string> last_key;
     std::optional<sstable_builder> builder;
     // todo: the algorithm
-    while (!sources.empty()) {
+    while (!streams.empty()) {
         if (!builder) {
             builder.emplace(db_path_.next_sst_path());
         }
 
-        auto src = sources.top();
-        sources.pop();
+        auto stream = streams.top();
+        streams.pop();
 
-        if (!last_key || last_key.value() != src.key()) {
-            assert(!last_key || last_key.value() < src.key());
+        if (!last_key || last_key.value() != stream.key()) {
+            assert(!last_key || last_key.value() < stream.key());
 
-            const auto& kv = *src.beg; 
+            const auto& kv = stream.key_value();
             builder->add(kv.key, kv.value);
             if (builder->size_in_bytes() > opts_.sstable_size) {
                 builder->done();
@@ -115,13 +117,13 @@ void compaction_task::run()
                 builder.reset();
             }
 
-            last_key.emplace(src.key());
-        }   
+            last_key.emplace(stream.key());
+        }
 
-        ++src.beg;
-        if (!src.empty()) {
-            assert(src.key() > last_key.value());
-            sources.push(src);
+        if (!stream.empty()) {
+            stream.advance();
+            assert(stream.key() > last_key.value());
+            streams.push(stream);
         }
     }
 

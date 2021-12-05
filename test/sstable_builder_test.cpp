@@ -55,18 +55,17 @@ TEST(sstable_builder, Build)
     EXPECT_EQ(sst.min(), key_min);
     EXPECT_EQ(sst.max(), key_max);
 
-    auto kv = sst.query_range(key_min, key_max);
-    EXPECT_EQ(kv.size(), keys.size());
+    auto it = sst.iter();
+    for (std::size_t i = 0; i < sst.count(); ++i) {
+        const auto& k = keys[i];
+        const auto& v = vals[i];
 
-    const auto user_keys = kv | views::transform([](const auto& x) {
-        return string(x.key.user_key());
-    }) | to<std::vector>();
-    const auto user_vals = kv | views::transform([](const auto& x) {
-        return x.value;
-    }) | to<std::vector>();
+        ASSERT_TRUE(!it->is_eof());
 
-    EXPECT_EQ(keys, user_keys);
-    EXPECT_EQ(vals, user_vals);
+        const auto kv = it->next();
+        EXPECT_EQ(kv.key.user_key(), k);
+        EXPECT_EQ(kv.value, v);
+    }
 
     const string_view test_key = "123";
 

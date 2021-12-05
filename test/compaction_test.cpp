@@ -6,6 +6,7 @@
 #include "sstable/sstable.h"
 #include "sstable/sstable_builder.h"
 #include "util/fmt_std.h"
+#include "util/iter_util.h"
 #include "test_util.h"
 
 using namespace std;
@@ -43,7 +44,7 @@ TEST(compaction_task, Empty)
 
     path_conf db_path(db_root);
     fs::create_directories(db_path.sst_dir());
-   
+
     std::vector<sstable_ptr> sstables;
     compaction_task(db_path, options{}, sstables, [](const auto& adds, const auto& dels){
         EXPECT_TRUE(adds.empty());
@@ -58,7 +59,7 @@ TEST(compaction_task, OneFile)
 
     path_conf db_path(db_root);
     fs::create_directories(db_path.sst_dir());
-   
+
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
     std::vector<sstable_ptr> sstables { make_sst(db_path.next_sst_path()) };
@@ -76,8 +77,8 @@ TEST(compaction_task, OneFile)
     EXPECT_EQ(x->max(), y->max());
     EXPECT_EQ(x->count(), y->count());
 
-    auto vec1 = x->query_range(x->min(), x->max());
-    auto vec2 = y->query_range(y->min(), y->max());
+    auto vec1 = dump_all(x->iter());
+    auto vec2 = dump_all(y->iter());
     EXPECT_EQ(vec1.size(), vec2.size());
     for (std::size_t i = 0; i < vec1.size(); ++i) {
         EXPECT_EQ(vec1[i].key.user_key(), vec2[i].key.user_key());
@@ -92,10 +93,10 @@ TEST(compaction_task, NotOverlapFile)
 
     path_conf db_path(db_root);
     fs::create_directories(db_path.sst_dir());
-   
+
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
-    std::vector<sstable_ptr> sstables { 
+    std::vector<sstable_ptr> sstables {
         make_sst(db_path.next_sst_path(), 0),
         make_sst(db_path.next_sst_path(), 10),
         make_sst(db_path.next_sst_path(), 20),
@@ -111,14 +112,14 @@ TEST(compaction_task, NotOverlapFile)
 
     std::map<std::string, std::string> answer;
     for (const auto& sst: removed) {
-        for (const auto& [key, val]: sst->query_range(sst->min(), sst->max())) {
+        for (const auto& [key, val]: dump_all(sst->iter())) {
             answer.emplace(key.user_key(), val);
         }
     }
 
     const auto& sst = added.front();
     EXPECT_EQ(sst->count(), answer.size());
-    
+
     for (const auto& [k, v]: answer) {
         auto value_in_sst = sst->query(k);
         EXPECT_TRUE(value_in_sst);
@@ -133,16 +134,16 @@ TEST(compaction_task, OverlappedFile)
 
     path_conf db_path(db_root);
     fs::create_directories(db_path.sst_dir());
-   
-    const auto kv_count = 4;
+
+    const auto kv_count = 100;
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
-    std::vector<sstable_ptr> sstables { 
-        make_sst(db_path.sst_path(0), 2, kv_count),
-        make_sst(db_path.sst_path(1), 4, kv_count)
-        //make_sst(db_path.sst_path(2), 100, kv_count),
-        //make_sst(db_path.sst_path(3), 150, kv_count),
-        //make_sst(db_path.sst_path(4), 60, kv_count / 10)
+    std::vector<sstable_ptr> sstables {
+        make_sst(db_path.sst_path(0), 0, kv_count),
+        make_sst(db_path.sst_path(1), 50, kv_count),
+        make_sst(db_path.sst_path(2), 100, kv_count),
+        make_sst(db_path.sst_path(3), 150, kv_count),
+        make_sst(db_path.sst_path(4), 60, kv_count / 10)
     };
     compaction_task(db_path, options{}, sstables, [&](const auto& adds, const auto& dels){
         added = adds;
@@ -154,14 +155,14 @@ TEST(compaction_task, OverlappedFile)
 
     std::map<std::string, std::string> answer;
     for (const auto& sst: removed) {
-        for (const auto& [key, val]: sst->query_range(sst->min(), sst->max())) {
+        for (const auto& [key, val]: dump_all(sst->iter())) {
             answer[std::string(key.user_key())] = val;
         }
     }
 
     const auto& sst = added.front();
     ASSERT_EQ(sst->count(), answer.size());
-    
+
     for (const auto& [k, v]: answer) {
         auto value_in_sst = sst->query(k);
         ASSERT_TRUE(value_in_sst);

@@ -6,6 +6,7 @@
 #include <optional>
 #include <istream>
 #include "core.h"
+#include "iter.h"
 
 namespace cloudkv {
 
@@ -15,9 +16,8 @@ public:
     explicit sstable(const path_t& file);
 
     std::optional<internal_key_value> query(user_key_ref key);
-    std::vector<internal_key_value> query_range(user_key_ref start_key, user_key_ref end_key);
 
-    // TODO add iterator interface
+    iter_ptr iter();
 
     user_key_ref min() const
     {
@@ -45,12 +45,7 @@ public:
     }
 
 private:
-    std::string read_str_(std::istream& in);
-
-    template <class T>
-    T read_int_(std::istream& in);
-
-    internal_key_value read_kv_(std::istream& in);
+    class sstable_iter;
 
 private:
     path_t path_;
