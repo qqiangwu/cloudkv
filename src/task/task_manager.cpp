@@ -26,7 +26,7 @@ bool task_manager::submit(task_ptr task, error_handler handler)
     std::lock_guard _(mut_);
 
     auto iter = tasks_.insert(std::move(task)).first;
-    SCOPE_FAIL{
+    SCOPE_FAIL {
         tasks_.erase(iter);
     };
 

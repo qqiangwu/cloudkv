@@ -18,6 +18,7 @@ add_requires("spdlog v1.9.1", { config = { fmt_external = true } })
 add_requires("abseil 20210324.2")
 add_requires("conan::range-v3/0.11.0", { alias = "range-v3" })
 add_requires("scope_guard 0.9.1")
+add_requires("folly 2021.08.02")
 
 target("cloudkv")
     set_kind("$(kind)")

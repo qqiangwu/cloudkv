@@ -10,6 +10,8 @@ function all_utils()
     return res
 end
 
+add_requires("gflags v2.2.2")
+
 for _, util in ipairs(all_utils()) do
 target(util[1])
     set_kind("binary")
@@ -17,5 +19,6 @@ target(util[1])
     add_packages("boost", { public = true })
     add_packages("range-v3")
     add_packages("fmt")
+    add_packages("gflags")
     add_deps("cloudkv")
 end

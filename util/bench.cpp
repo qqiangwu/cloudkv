@@ -3,20 +3,26 @@
 #include <chrono>
 #include <vector>
 #include <functional>
+#include <filesystem>
 #include <memory>
 #include <fmt/core.h>
 #include <boost/thread/barrier.hpp>
+#include <gflags/gflags.h>
 #include "cloudkv/db.h"
 
 using namespace cloudkv;
 
-const int key_count = 1024 * 1024;
-const int batch_size = 8;
+namespace fs = std::filesystem;
+
+DEFINE_uint32(key_count, 1024 * 1024, "key count");
+DEFINE_uint32(batch_size, 8, "batch per write");
+DEFINE_uint32(thread_cnt, 4, "threads for benchmark");
+DEFINE_uint32(key_size, 16, "key size");
+DEFINE_uint32(val_size, 128, "value size");
+DEFINE_string(db_name, "db_bench", "db name for bench");
+DEFINE_bool(use_existing_db, false, "use existing db or create new");
 
 struct Test_conf {
-    const int thread_count;
-    const std::uint64_t key_size;
-    const std::uint64_t val_size;
     boost::barrier started;
     boost::barrier stopped;
     kv_ptr db;
@@ -37,7 +43,7 @@ void run_readrandom(Thread_ctx& ctx)
     const kv_ptr& kv = ctx.conf.db;
 
     while (true) {
-        for (int i = 0; i < key_count; ++i) {
+        for (int i = 0; i < FLAGS_key_count; ++i) {
             auto key = fmt::format("key-{:016}", i);
             kv->query(key);
             ctx.cnt.fetch_add(1, std::memory_order_relaxed);
@@ -63,18 +69,18 @@ void fill_db(const Test_conf& conf)
     };
     std::vector<raw_key_value> raw;
     std::vector<key_value> batch;
-    raw.reserve(batch_size);
-    batch.reserve(batch_size);
+    raw.reserve(FLAGS_batch_size);
+    batch.reserve(FLAGS_batch_size);
 
-    fmt::print("fill db with {} keys", key_count);
-    for (int i = 0; i < key_count; ++i) {
+    fmt::print("fill db with {} keys\n", FLAGS_key_count);
+    for (int i = 0; i < FLAGS_key_count; ++i) {
         raw.clear();
         batch.clear();
 
-        for (int k = 0; k < batch_size; ++k) {
+        for (int k = 0; k < FLAGS_batch_size; ++k) {
             raw.push_back({
-                fmt::format("key-{:016}", std::rand() % key_count),
-                std::string(conf.val_size, ' ')
+                fmt::format("key-{:016}", std::rand() % FLAGS_key_count),
+                std::string(FLAGS_val_size, ' ')
             });
             batch.push_back({
                 raw.back().key,
@@ -86,30 +92,31 @@ void fill_db(const Test_conf& conf)
     }
 }
 
-int main(int argc, const char** argv)
+int main(int argc, char** argv)
 {
-    const int thread_cnt = argc > 1? std::stoi(argv[1]): 4;
-    const std::uint64_t key_size = argc > 2? std::stoull(argv[2]): 64;
-    const std::uint64_t val_size = argc > 3? std::stoull(argv[3]): 512;
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+    if (!FLAGS_use_existing_db) {
+        fs::remove_all(FLAGS_db_name);
+    }
 
     Test_conf conf {
-        thread_cnt,
-        key_size,
-        val_size,
-        boost::barrier(thread_cnt + 1),
-        boost::barrier(thread_cnt + 1),
-        open("db_bench", {})
+        boost::barrier(FLAGS_thread_cnt + 1),
+        boost::barrier(FLAGS_thread_cnt + 1),
+        open(FLAGS_db_name, {})
     };
 
-    fill_db(conf);
+    if (!FLAGS_use_existing_db) {
+        fill_db(conf);
+    }
 
     std::vector<std::unique_ptr<Thread_ctx>> ctxs;
-    for (int i = 0; i < thread_cnt; ++i) {
+    for (int i = 0; i < FLAGS_thread_cnt; ++i) {
         ctxs.push_back(std::make_unique<Thread_ctx>(conf, i));
         std::thread(bench_thread, std::ref(*ctxs.back())).detach();
     }
 
-    fmt::print("{} threads launched, wait all started\n", thread_cnt);
+    fmt::print("{} threads launched, wait all started\n", FLAGS_thread_cnt);
     conf.started.count_down_and_wait();
 
     using namespace std::chrono_literals;
@@ -121,6 +128,6 @@ int main(int argc, const char** argv)
             cnts += ctx->cnt.exchange(0, std::memory_order_relaxed);
         }
 
-        fmt::print("qps={} latency={}ms\n", cnts, thread_cnt / float(cnts) * 1000);
+        fmt::print("qps={} latency={}ms\n", cnts, FLAGS_thread_cnt / float(cnts) * 1000);
     }
 }
