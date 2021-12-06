@@ -14,7 +14,7 @@ package_end()
 
 add_requires("boost 1.76.0", { configs = { thread = true, serialization = true } })
 add_requires("fmt 8.0.1")
-add_requires("spdlog v1.9.1", { config = { fmt_external = true } })
+add_requires("spdlog v1.9.1", { configs = { fmt_external = true } })
 add_requires("abseil 20210324.2")
 add_requires("conan::range-v3/0.11.0", { alias = "range-v3" })
 add_requires("scope_guard 0.9.1")

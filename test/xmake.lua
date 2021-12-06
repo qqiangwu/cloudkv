@@ -1,6 +1,6 @@
 add_includedirs("../src/")
 
-add_requires("gtest 1.11.0", { config = {main = true} })
+add_requires("gtest 1.11.0", { configs = { main = true } })
 
 function all_tests()
     local res = {}
