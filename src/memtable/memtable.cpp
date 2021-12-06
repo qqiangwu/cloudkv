@@ -16,7 +16,7 @@ void memtable::add(key_type op, user_key_ref key, string_view value)
     }
 
     map_.emplace(internal_key{key, op}, value);
-    bytes_used_ += key.size();
+    bytes_used_ += key.size() + value.size();
 }
 
 std::optional<internal_key_value> memtable::query(user_key_ref key) const
