@@ -30,7 +30,9 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Install xmake
-        run: bash <(curl -fsSL https://xmake.io/shget.text)
+        run: |
+          bash <(curl -fsSL https://xmake.io/shget.text)
+          source ~/.xmake/profile
 
       - name: Install conan
         run: pip install conan
