@@ -6,45 +6,54 @@ using namespace cloudkv;
 
 void memtable::add(key_type op, user_key_ref key, string_view value)
 {
-    lock_guard _(mut_);
+    std::uint64_t old_kv_size = 0;
+    std::uint64_t new_kv_size = key.size() + value.size();
 
-    const auto it = map_.find(key);
-    if (it != map_.end()) {
-        bytes_used_ -= it->first.user_key().size() + it->second.size();
+    accessor_t accessor(&map_);
+    auto it = accessor.find(kv_entry(key));
+    if (it != accessor.end()) {
+        const auto& kv = it->kv;
 
-        map_.erase(it);
+        old_kv_size = kv.key.user_key().size() + kv.value.size();
+        it->kv.key = { key, op };
+        it->kv.value = value;
+    } else {
+        accessor.insert(kv_entry(op, key, value));
     }
 
-    map_.emplace(internal_key{key, op}, value);
-    bytes_used_ += key.size() + value.size();
+    lock_guard _(mut_);
+    bytes_used_ += new_kv_size;
+    bytes_used_ -= old_kv_size;
 }
 
-std::optional<internal_key_value> memtable::query(user_key_ref key) const
+std::optional<internal_key_value> memtable::query(user_key_ref key)
 {
-    lock_guard _(mut_);
-
-    auto iter = map_.find(key);
-    if (iter == map_.end()) {
-        return nullopt;
+    accessor_t accessor(&map_);
+    auto it = accessor.find(kv_entry(key));
+    if (it == accessor.end()) {
+        return std::nullopt;
     }
 
-    return { { iter->first, iter->second } };
+    return it->kv;
 }
 
-std::vector<internal_key_value> memtable::query_range(const key_range& r) const
+std::vector<internal_key_value> memtable::query_range(const key_range& r)
 {
     vector<internal_key_value> results;
 
-    if (!(r.start < r.end)) {
+    if (r.start > r.end) {
         return results;
     }
 
-    lock_guard _(mut_);
-    auto lowbound = map_.lower_bound(r.start);
-    auto upbound = map_.upper_bound(r.end);
+    accessor_t accessor(&map_);
+    auto lowbound = accessor.lower_bound(kv_entry(r.start));
+    auto upbound = accessor.lower_bound(kv_entry(r.end));
+    if (upbound != accessor.end() && upbound->user_key() == r.end) {
+        ++upbound;
+    }
 
-    for_each(lowbound, upbound, [&results](const auto& kv){
-        results.push_back({ kv.first, kv.second });
+    for_each(lowbound, upbound, [&results](const auto& entry){
+        results.push_back(entry.kv);
     });
 
     return results;

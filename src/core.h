@@ -26,7 +26,7 @@ enum class key_type : std::uint32_t {
 
 class internal_key {
 public:
-    explicit internal_key(std::string_view raw_key);
+    internal_key() = default;
 
     internal_key(user_key_ref key, key_type type)
         : user_key_(key), type_(type)
@@ -67,28 +67,5 @@ struct internal_key_value {
     internal_key key;
     std::string value;
 };
-
-namespace detail {
-
-struct key_cmp {
-    using is_transparent = void;
-
-    bool operator()(const internal_key& x, const internal_key& y) const
-    {
-        return x.user_key() < y.user_key();
-    }
-
-    bool operator()(const internal_key& x, user_key_ref y) const
-    {
-        return x.user_key() < y;
-    }
-
-    bool operator()(user_key_ref x, const internal_key& y) const
-    {
-        return x < y.user_key();
-    }
-};  
-
-}
 
 }

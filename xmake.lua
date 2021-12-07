@@ -36,6 +36,7 @@ target("cloudkv")
     add_packages("spdlog")
     add_packages("range-v3")
     add_packages("scope_guard")
+    add_packages("folly")
 
 includes("test/")
 includes("util/")

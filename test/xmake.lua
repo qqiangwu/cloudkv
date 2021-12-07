@@ -21,5 +21,6 @@ target(test[1])
     add_packages("gtest")
     add_packages("range-v3")
     add_packages("fmt")
+    add_packages("folly")
     add_deps("cloudkv")
 end

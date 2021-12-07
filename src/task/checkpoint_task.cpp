@@ -14,15 +14,15 @@ void checkpoint_task::run()
     using namespace std::chrono;
 
     const auto sst_path = db_path_.next_sst_path();
-    
+
     std::ofstream ofs(sst_path, std::ios::binary);
     if (!ofs) {
         throw db_corrupted{ fmt::format("cannot write sst file {}", sst_path) };
     }
     sstable_builder builder(ofs);
 
-    for (const auto& [k, v]: memtable_->items()) {
-        builder.add(k, v);
+    for (const auto& kv: memtable_->items()) {
+        builder.add(kv.kv.key, kv.kv.value);
     }
 
     builder.done();

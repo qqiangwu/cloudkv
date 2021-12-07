@@ -12,10 +12,11 @@ TEST(memtable, InsertOne)
     string_view key = "abc";
     string_view val = "val";
     mt.add(key_type::value, key, val);
+
     auto r = mt.query(key);
-    EXPECT_TRUE(r);
+    ASSERT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
-    EXPECT_EQ(r.value().key.type(), key_type::value); 
+    EXPECT_EQ(r.value().key.type(), key_type::value);
     EXPECT_EQ(r.value().value, val);
 }
 
@@ -29,16 +30,16 @@ TEST(memtable, Query)
 
     mt.add(key_type::value, key, val);
     auto r = mt.query(key);
-    EXPECT_TRUE(r);
+    ASSERT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
-    EXPECT_EQ(r.value().key.type(), key_type::value); 
+    EXPECT_EQ(r.value().key.type(), key_type::value);
     EXPECT_EQ(r.value().value, val);
 
     mt.add(key_type::value, key, val2);
     r = mt.query(key);
-    EXPECT_TRUE(r);
+    ASSERT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
-    EXPECT_EQ(r.value().key.type(), key_type::value); 
+    EXPECT_EQ(r.value().key.type(), key_type::value);
     EXPECT_EQ(r.value().value, val2);
 }
 
@@ -50,22 +51,22 @@ TEST(memtable, Delete)
     string_view val = "val";
     mt.add(key_type::value, key, val);
     auto r = mt.query(key);
-    EXPECT_TRUE(r);
+    ASSERT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
-    EXPECT_EQ(r.value().key.type(), key_type::value); 
+    EXPECT_EQ(r.value().key.type(), key_type::value);
     EXPECT_EQ(r.value().value, val);
 
     mt.add(key_type::tombsome, key, "");
-    
+
     r = mt.query(key);
-    EXPECT_TRUE(r);
+    ASSERT_TRUE(r);
     EXPECT_EQ(r.value().key.type(), key_type::tombsome);
 
     mt.add(key_type::value, key, val);
     r = mt.query(key);
-    EXPECT_TRUE(r);
+    ASSERT_TRUE(r);
     EXPECT_EQ(r.value().key.user_key(), key);
-    EXPECT_EQ(r.value().key.type(), key_type::value); 
+    EXPECT_EQ(r.value().key.type(), key_type::value);
     EXPECT_EQ(r.value().value, val);
 }
 
