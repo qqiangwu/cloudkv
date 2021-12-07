@@ -1,3 +1,4 @@
+#include <cassert>
 #include "util/fmt_std.h"
 #include "util/format.h"
 #include "cloudkv/exception.h"
@@ -40,7 +41,7 @@ std::optional<redo_entry> redolog_reader::next()
         std::string val;
         std::string_view sv = buf;
         sv.remove_prefix(sizeof(op));
-        
+
         sv = decode_str(sv, &key);
         sv = decode_str(sv, &val);
 
