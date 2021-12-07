@@ -35,8 +35,8 @@ jobs:
           xmake-version: latest
 
       - name: Install conan
-        run: pip install conan
+        run: pip3 install conan
 
       # Runs a set of commands using the runners shell
       - name: Build
-        run: xmake -y
+        run: xmake -ay

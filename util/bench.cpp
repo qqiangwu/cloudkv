@@ -83,7 +83,9 @@ void fill_db(const Test_conf& conf)
         raw.clear();
         batch.clear();
 
-        for (int k = 0; k < FLAGS_batch_size; ++k) {
+        for (const auto k: indices(FLAGS_batch_size)) {
+            (void)k;
+
             raw.push_back({
                 fmt::format("key-{:016}", std::rand() % FLAGS_key_count),
                 std::string(FLAGS_val_size, ' ')
