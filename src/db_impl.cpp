@@ -379,11 +379,13 @@ void db_impl::update_meta_(const meta_update_args& args)
 
         assert(meta.committed_lsn <= meta.next_lsn);
 
-        spdlog::info("[meta] store, committed_lsn={}, sst={}", meta.committed_lsn, meta.sstables.size());
+        spdlog::info("[meta] store, committed_lsn={}, sst={} -> {}",
+            meta.committed_lsn,
+            old_sst_count,
+            sstables.size());
         store_meta_(meta);
 
         // commit
-        spdlog::info("compaction done, old={} sst, new={} sst", old_sst_count, sstables.size());
         strict_lock_guard __(mut_);
         using namespace std;
         swap(meta_.committed_lsn, meta.committed_lsn);
