@@ -119,6 +119,9 @@ std::map<std::string, std::string> db_impl::query_range(
     std::string_view end_key,
     int count)
 {
+    (void)start_key;
+    (void)end_key;
+    (void)count;
     return {};
 }
 

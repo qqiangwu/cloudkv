@@ -15,6 +15,7 @@ add_requires("gflags v2.2.2")
 for _, util in ipairs(all_utils()) do
 target(util[1])
     set_kind("binary")
+    set_default(false)
     add_files(util[2])
     add_packages("boost", { public = true })
     add_packages("range-v3")

@@ -1,7 +1,8 @@
 add_rules("mode.debug", "mode.release")
 
-set_warnings("all", "error")
+set_warnings("allextra", "error")
 set_languages("c++17")
+add_cxflags("-Wno-missing-field-initializers")
 
 package("scope_guard")
 	add_urls("https://github.com/Neargye/scope_guard.git")
@@ -12,13 +13,15 @@ package("scope_guard")
     end)
 package_end()
 
-add_requires("boost 1.76.0", { configs = { thread = true, serialization = true } })
+boost_configs = { context = true, filesystem = true, program_options = true, regex = true, system = true, thread = true, serialization = true }
+
+add_requires("boost 1.76.0", { configs = boost_configs })
 add_requires("fmt 8.0.1")
 add_requires("spdlog v1.9.1", { configs = { fmt_external = true } })
-add_requires("abseil 20210324.2")
 add_requires("conan::range-v3/0.11.0", { alias = "range-v3" })
 add_requires("scope_guard 0.9.1")
 add_requires("folly 2021.08.02")
+add_requireconfs("folly.boost", { version = "1.76.0", override = true, configs = boost_configs })
 
 target("cloudkv")
     set_kind("$(kind)")

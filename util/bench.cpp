@@ -1,3 +1,4 @@
+#include <atomic>
 #include <thread>
 #include <string>
 #include <chrono>
@@ -7,10 +8,13 @@
 #include <memory>
 #include <fmt/core.h>
 #include <boost/thread/barrier.hpp>
+#include <range/v3/view.hpp>
 #include <gflags/gflags.h>
 #include "cloudkv/db.h"
 
 using namespace cloudkv;
+
+using ranges::views::indices;
 
 namespace fs = std::filesystem;
 
@@ -43,7 +47,7 @@ void run_readrandom(Thread_ctx& ctx)
     const kv_ptr& kv = ctx.conf.db;
 
     while (true) {
-        for (int i = 0; i < FLAGS_key_count; ++i) {
+        for (const auto i: indices(FLAGS_key_count)) {
             auto key = fmt::format("key-{:016}", i);
             kv->query(key);
             ctx.cnt.fetch_add(1, std::memory_order_relaxed);
@@ -73,7 +77,9 @@ void fill_db(const Test_conf& conf)
     batch.reserve(FLAGS_batch_size);
 
     fmt::print("fill db with {} keys\n", FLAGS_key_count);
-    for (int i = 0; i < FLAGS_key_count; ++i) {
+    for (const auto i: indices(FLAGS_key_count)) {
+        (void)i;
+
         raw.clear();
         batch.clear();
 
@@ -111,7 +117,7 @@ int main(int argc, char** argv)
     }
 
     std::vector<std::unique_ptr<Thread_ctx>> ctxs;
-    for (int i = 0; i < FLAGS_thread_cnt; ++i) {
+    for (const auto i: indices(FLAGS_thread_cnt)) {
         ctxs.push_back(std::make_unique<Thread_ctx>(conf, i));
         std::thread(bench_thread, std::ref(*ctxs.back())).detach();
     }

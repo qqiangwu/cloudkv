@@ -14,6 +14,8 @@ using namespace ranges;
 
 namespace fs = std::filesystem;
 
+using views::indices;
+
 constexpr string_view db_name = "test";
 
 void remove_db()
@@ -24,7 +26,7 @@ void remove_db()
 struct Cleanup {
     Cleanup()
     {
-        remove_db();   
+        remove_db();
     }
 };
 
@@ -61,7 +63,7 @@ TEST(db, Basic)
     const string_view bad_key = "12";
 
     EXPECT_FALSE(db->query(key));
-    EXPECT_FALSE(db->query(bad_key)); 
+    EXPECT_FALSE(db->query(bad_key));
 
     db->batch_add({
         { key, val }
@@ -71,7 +73,7 @@ TEST(db, Basic)
     EXPECT_TRUE(r);
     EXPECT_EQ(r.value(), val);
 
-    EXPECT_FALSE(db->query(bad_key)); 
+    EXPECT_FALSE(db->query(bad_key));
 }
 
 TEST(db, MultiInsert)
@@ -82,11 +84,11 @@ TEST(db, MultiInsert)
     ASSERT_TRUE(db);
 
     auto raw_keys = views::ints(0, 1000);
-    auto keys = raw_keys 
-        | views::transform([](int i){ return std::to_string(i); }) 
+    auto keys = raw_keys
+        | views::transform([](int i){ return std::to_string(i); })
         | to<std::vector>()
         | actions::sort;
-    auto key_values = keys 
+    auto key_values = keys
         | views::transform([](const auto& k){
             return std::make_tuple(k, "val-" + k);
         })
@@ -111,16 +113,16 @@ TEST(db, Checkpoint)
     opts.write_buffer_size = 1024;
     auto db = open(db_name, opts);
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (auto i: indices(opts.write_buffer_size)) {
         db->batch_add({
             { "key-" + std::to_string(i), "val-" + std::to_string(i) }
         });
     }
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (auto i: indices(opts.write_buffer_size)) {
         auto r = db->query("key-" + std::to_string(i));
         EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+        EXPECT_EQ(r.value(), "val-" + std::to_string(i));
     }
 }
 
@@ -132,26 +134,26 @@ TEST(db, Persistent)
     opts.write_buffer_size = 1024;
     auto db = open(db_name, opts);
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (auto i: indices(opts.write_buffer_size)) {
         db->batch_add({
             { "key-" + std::to_string(i), "val-" + std::to_string(i) }
         });
     }
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (auto i: indices(opts.write_buffer_size)) {
         auto r = db->query("key-" + std::to_string(i));
         EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+        EXPECT_EQ(r.value(), "val-" + std::to_string(i));
     }
 
     static_cast<db_impl*>(db.get())->TEST_flush();
-    
+
     db.reset();
     db = open(db_name, opts);
 
-    for (int i = 0; i < opts.write_buffer_size; ++i) {
+    for (auto i: indices(opts.write_buffer_size)) {
         auto r = db->query("key-" + std::to_string(i));
         EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), "val-" + std::to_string(i)); 
+        EXPECT_EQ(r.value(), "val-" + std::to_string(i));
     }
 }

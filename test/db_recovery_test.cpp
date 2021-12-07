@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <gtest/gtest.h>
+#include <range/v3/view.hpp>
 #include "test_util.h"
 #include "db_impl.h"
 
@@ -7,6 +8,8 @@ using namespace std;
 using namespace cloudkv;
 
 namespace fs = std::filesystem;
+
+using ranges::views::indices;
 
 const string_view test_db = "test_db";
 
@@ -22,24 +25,24 @@ TEST(db_recover, Replay)
     auto db = open(db_root.native(), opts);
     ASSERT_TRUE(db);
 
-    for (int i = 0; i < key_count; ++i) {
+    for (const auto i: indices(key_count)) {
         db->batch_add({
             { "key-" + std::to_string(i), "val-" + std::to_string(i) }
         });
     }
 
-    for (int i = 0; i < key_count; ++i) {
+    for (const auto i: indices(key_count)) {
         auto r = db->query("key-" + std::to_string(i));
         ASSERT_TRUE(r);
-        ASSERT_EQ(r.value(), "val-" + std::to_string(i)); 
+        ASSERT_EQ(r.value(), "val-" + std::to_string(i));
     }
 
     db.reset();
     db = open(db_root.native(), opts);
 
-    for (int i = 0; i < key_count; ++i) {
+    for (const auto i: indices(key_count)) {
         auto r = db->query("key-" + std::to_string(i));
         ASSERT_TRUE(r);
-        ASSERT_EQ(r.value(), "val-" + std::to_string(i)); 
+        ASSERT_EQ(r.value(), "val-" + std::to_string(i));
     }
 }

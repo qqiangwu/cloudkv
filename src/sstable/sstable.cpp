@@ -102,7 +102,7 @@ void sstable::sstable_iter::seek(user_key_ref key)
 
 bool sstable::sstable_iter::is_eof()
 {
-    return in_.tellg() >= payload_len_;
+    return std::uint64_t(in_.tellg()) >= payload_len_;
 }
 
 internal_key_value sstable::sstable_iter::next()

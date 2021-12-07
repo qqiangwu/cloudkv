@@ -32,11 +32,11 @@ replay_result replayer::replay()
     for (const auto& p: fs::directory_iterator(db_path_.redo_dir())) {
         redologs.push_back(p.path());
     }
-    
+
     auto redolog_need_replay = redologs
         | views::transform([](const auto& p){
             const std::string_view raw = p.filename().native();
-            std::uint64_t lsn;
+            std::uint64_t lsn = 0;
             const auto r = std::from_chars(raw.begin(), raw.end(), lsn);
             if (r.ec == std::errc::invalid_argument) {
                 spdlog::warn("invalid redolog {} found, ignored for safety", p);
@@ -44,14 +44,14 @@ replay_result replayer::replay()
             }
 
             return redo_ctx { p, lsn };
-        }) 
+        })
         | views::filter([committed_lsn = committed_lsn_](const redo_ctx& ctx){
             return ctx.lsn > committed_lsn;
         })
         | views::filter([](const redo_ctx& ctx){
             return fs::file_size(ctx.path) > 0;
         })
-        | to<std::vector>() 
+        | to<std::vector>()
         | actions::sort([](const auto& x, const auto& y){
             return x.lsn < y.lsn;
         });
@@ -91,4 +91,4 @@ sstable_ptr replayer::do_replay_(const path_t& redopath)
     }).run();
 
     return result;
-} 
+}
