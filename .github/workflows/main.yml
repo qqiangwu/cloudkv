@@ -29,6 +29,9 @@ jobs:
       - name: Install xmake
         run: bash <(curl -fsSL https://xmake.io/shget.text)
 
+      - name: Install conan
+        run: pip install conan
+
       # Runs a set of commands using the runners shell
       - name: Build
-        run: xmake -vy
+        run: xmake -y
