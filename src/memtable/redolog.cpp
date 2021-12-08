@@ -27,7 +27,7 @@ void redolog::write(const write_batch& batch)
 
     for (const auto& [key, value, op]: batch) {
         const auto old_size = buf_.size();
-        
+
         buf_.append(header_size, 0);
 
         PutFixed32(&buf_, std::uint32_t(op));
@@ -38,10 +38,5 @@ void redolog::write(const write_batch& batch)
     }
 
     out_.write(buf_.data(), buf_.size());
-    out_.flush();
-}
-
-void redolog::flush()
-{
     out_.flush();
 }

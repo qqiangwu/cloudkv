@@ -14,8 +14,6 @@ public:
 
     void write(const write_batch& batch);
 
-    void flush();
-
 private:
     std::ofstream out_;
     std::string buf_;
