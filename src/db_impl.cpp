@@ -185,11 +185,12 @@ try {
 void db_impl::write_(const write_batch& writes)
 {
     auto ctx = get_write_ctx_();
+    auto& redolog = *ctx.redolog;
     auto& memtable = *ctx.memtable;
 
     {
         std::lock_guard _(tx_mut_);
-        redolog_->write(writes);
+        redolog.write(writes);
 
         // commit
         try {
@@ -208,7 +209,7 @@ void db_impl::write_(const write_batch& writes)
 db_impl::write_ctx db_impl::get_write_ctx_()
 {
     std::lock_guard _(mut_);
-    return { active_memtable_ };
+    return { redolog_, active_memtable_ };
 }
 
 db_impl::read_ctx db_impl::get_read_ctx_()

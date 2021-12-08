@@ -64,8 +64,6 @@ TEST(replayer, Replay)
             batch.add(fmt::format("key-{}-{}", i, k), fmt::format("val-{}-{}", i, k));
             log.write(batch);
         }
-
-        log.flush();
     }
 
     auto res = replayer(db_path, persisted_lsn).replay();

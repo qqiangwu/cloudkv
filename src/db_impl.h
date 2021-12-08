@@ -41,6 +41,7 @@ private:
     void write_(const write_batch& batch);
 
     struct write_ctx {
+        redolog_ptr redolog;
         memtable_ptr memtable;
     };
     write_ctx get_write_ctx_();
