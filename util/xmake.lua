@@ -21,5 +21,6 @@ target(util[1])
     add_packages("range-v3")
     add_packages("fmt")
     add_packages("gflags")
+    add_packages("spdlog")
     add_deps("cloudkv")
 end
