@@ -10,7 +10,7 @@ namespace cloudkv {
 
 /**
  * @brief simple format: sorted string list
- * 
+ *
  * [record1]: key_size|key_chars|key_type|value_size|value_chars
  * [record2]
  * [record3]
@@ -20,7 +20,7 @@ namespace cloudkv {
  *      min_key: key_size(fix32)|key_chars
  *      max_key: key_size(fix32)|key_chars
  *      key_value_count: fix32
- * 
+ *
  */
 class sstable_builder {
 public:
@@ -29,7 +29,7 @@ public:
     explicit sstable_builder(const path_t& p);
 
     void add(const internal_key& key, std::string_view value);
-    
+
     void done();
 
     std::uint64_t size_in_bytes() const
@@ -50,14 +50,10 @@ private:
     const path_t path_;
     std::unique_ptr<std::ofstream> buf_;
     std::ostream& out_;
-    
-    struct ctx {
-        std::string key_min;
-        std::string key_max;
-        int count;
-    };
 
-    std::optional<ctx> ctx_;
+    std::string key_min_;
+    std::string key_max_;
+    int count_ = 0;
     std::uint64_t size_in_bytes_ = 0;
 };
 
