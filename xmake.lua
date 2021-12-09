@@ -1,4 +1,4 @@
-add_rules("mode.debug", "mode.release", "mode.releasedbg")
+add_rules("mode.debug", "mode.release")
 
 set_warnings("allextra", "error")
 set_languages("c++17")

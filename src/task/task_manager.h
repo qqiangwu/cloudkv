@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mutex>
-#include <unordered_set>
+#include <set>
 #include <functional>
 #include <boost/noncopyable.hpp>
 #include <boost/thread/executors/basic_thread_pool.hpp>
@@ -23,7 +23,7 @@ public:
 
 private:
     struct task_ctx {
-        const task_ptr& task;
+        task* task;
         const error_handler handler;
     };
 
@@ -31,8 +31,25 @@ private:
 
 private:
     boost::executors::basic_thread_pool worker_;
+
+    struct task_cmp : private std::less<task_ptr> {
+        using is_transparent = void;
+
+        using std::less<task_ptr>::operator();
+
+        bool operator()(const task_ptr& x, task* y) const
+        {
+            return x.get() < y;
+        }
+
+        bool operator()(task* x, const task_ptr& y) const
+        {
+            return x < y.get();
+        }
+    };
+
     std::mutex mut_;
-    std::unordered_set<task_ptr> tasks_;
+    std::set<task_ptr, task_cmp> tasks_;
 };
 
 }

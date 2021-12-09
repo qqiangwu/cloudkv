@@ -196,4 +196,6 @@ int main(int argc, char** argv)
 
         fmt::print("qps={} latency={}ms\n", cnts, FLAGS_thread_cnt / float(cnts) * 1000);
     }
+
+    fmt::print("benchmark finished\n");
 }

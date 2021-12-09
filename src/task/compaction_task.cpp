@@ -89,7 +89,7 @@ void compaction_task::run()
     std::optional<std::string> last_key;
     std::optional<sstable_builder> builder;
     // todo: the algorithm
-    while (!streams.empty()) {
+    while (!streams.empty() && !is_cancelled()) {
         if (!builder) {
             builder.emplace(db_path_.next_sst_path());
         }

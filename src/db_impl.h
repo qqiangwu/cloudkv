@@ -83,9 +83,9 @@ private:
     memtable_ptr active_memtable_;
     memtable_ptr immutable_memtable_;
 
-    task_manager task_mgr_;
-
     std::atomic_flag compaction_running_ = ATOMIC_FLAG_INIT;
+
+    task_manager task_mgr_;
 };
 
 }

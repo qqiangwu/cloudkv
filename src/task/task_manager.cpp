@@ -13,8 +13,11 @@ task_manager::~task_manager()
 {
     worker_.close();
 
-    for (const auto& task: tasks_) {
-        task->cancel();
+    {
+        std::lock_guard _(mut_);
+        for (const auto& task: tasks_) {
+            task->cancel();
+        }
     }
 
     worker_.join();
@@ -25,26 +28,27 @@ bool task_manager::submit(task_ptr task, error_handler handler)
 {
     std::lock_guard _(mut_);
 
-    auto iter = tasks_.insert(std::move(task)).first;
+    const auto iter = tasks_.insert(std::move(task)).first;
     SCOPE_FAIL {
         tasks_.erase(iter);
     };
 
+    const auto raw_task = iter->get();
     try {
-        worker_.submit([ctx = task_ctx{ *iter, std::move(handler) }, this]{
+        worker_.submit([ctx = task_ctx{ raw_task, std::move(handler) }, this]{
             run_task_(ctx);
         });
 
         return true;
     } catch (boost::sync_queue_is_closed&) {
-        spdlog::warn("[task] task {} rejected because closed", task->name());
+        spdlog::warn("[task] task {} rejected because closed", raw_task->name());
         return false;
     }
 }
 
 void task_manager::run_task_(const task_ctx& ctx) noexcept
 {
-    const auto& task = ctx.task;
+    const auto task = ctx.task;
 
     try {
         task->run();
@@ -58,5 +62,7 @@ void task_manager::run_task_(const task_ctx& ctx) noexcept
 
     // commit
     std::lock_guard _(mut_);
-    tasks_.erase(task);
+    auto it = tasks_.find(task);
+    assert(it != tasks_.end());
+    tasks_.erase(it);
 }
