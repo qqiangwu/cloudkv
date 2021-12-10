@@ -23,6 +23,11 @@ public:
         writes_.push_back({ key, "", key_type::tombsome });
     }
 
+    void add(const write_batch& other)
+    {
+        writes_.insert(writes_.end(), other.writes_.begin(), other.writes_.end());
+    }
+
     auto begin() const
     {
         return writes_.begin();
@@ -31,6 +36,11 @@ public:
     auto end() const
     {
         return writes_.end();
+    }
+
+    auto size() const
+    {
+        return writes_.size();
     }
 
 private:

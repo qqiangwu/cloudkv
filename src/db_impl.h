@@ -9,6 +9,7 @@
 #include "task/task_manager.h"
 #include "meta.h"
 #include "path_conf.h"
+#include "batch_executor.h"
 
 namespace cloudkv {
 
@@ -39,12 +40,7 @@ private:
 
 private:
     void write_(const write_batch& batch);
-
-    struct write_ctx {
-        redolog_ptr redolog;
-        memtable_ptr memtable;
-    };
-    write_ctx get_write_ctx_();
+    void commit_(const write_batch& batch);
 
     struct read_ctx {
         std::vector<memtable_ptr> memtables;
@@ -78,7 +74,6 @@ private:
     std::mutex mut_;      // for db state
     metainfo meta_;
 
-    std::mutex tx_mut_;   // for kv write operation
     redolog_ptr redolog_;
     memtable_ptr active_memtable_;
     memtable_ptr immutable_memtable_;
@@ -86,6 +81,7 @@ private:
     std::atomic_flag compaction_running_ = ATOMIC_FLAG_INIT;
 
     task_manager task_mgr_;
+    batch_executor write_executor_;
 };
 
 }

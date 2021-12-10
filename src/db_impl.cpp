@@ -28,7 +28,8 @@ using std::nullopt;
 db_impl::db_impl(std::string_view name, const options& opts)
     : options_(opts),
       db_path_(name),
-      active_memtable_(std::make_shared<memtable>())
+      active_memtable_(std::make_shared<memtable>()),
+      write_executor_([this](const write_batch& batch){ commit_(batch); })
 {
     const auto db_exists = fs::exists(db_path_.root());
 
@@ -184,32 +185,29 @@ try {
 
 void db_impl::write_(const write_batch& writes)
 {
-    auto ctx = get_write_ctx_();
-    auto& redolog = *ctx.redolog;
-    auto& memtable = *ctx.memtable;
+    auto f = write_executor_.submit(writes);
 
-    {
-        std::lock_guard _(tx_mut_);
-        redolog.write(writes);
+    f.get();
+}
 
-        // commit
-        try {
-            for (const auto& [key, val, op]: writes) {
-                memtable.add(op, key, val);
-            }
-        } catch (std::exception& e) {
-            spdlog::critical("commit memtable failed after redo done: {}", e.what());
-            std::terminate();
+void db_impl::commit_(const write_batch& writes)
+{
+    assert(redolog_);
+    assert(active_memtable_);
+
+    redolog_->write(writes);
+
+    // commit
+    try {
+        for (const auto& [key, val, op]: writes) {
+            active_memtable_->add(op, key, val);
         }
+    } catch (std::exception& e) {
+        spdlog::critical("commit memtable failed after redo done: {}", e.what());
+        std::terminate();
     }
 
     try_schedule_checkpoint_();
-}
-
-db_impl::write_ctx db_impl::get_write_ctx_()
-{
-    std::lock_guard _(mut_);
-    return { redolog_, active_memtable_ };
 }
 
 db_impl::read_ctx db_impl::get_read_ctx_()
