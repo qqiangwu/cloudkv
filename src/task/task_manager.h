@@ -23,7 +23,7 @@ public:
 
 private:
     struct task_ctx {
-        task* task;
+        cloudkv::task* task;
         const error_handler handler;
     };
 
