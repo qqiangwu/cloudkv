@@ -40,6 +40,8 @@ private:
 
 private:
     void write_(const write_batch& batch);
+
+    void make_room_();
     void commit_(const write_batch& batch);
 
     struct read_ctx {
@@ -47,8 +49,6 @@ private:
         std::vector<sstable_ptr> sstables;
     };
     read_ctx get_read_ctx_();
-
-    void try_schedule_checkpoint_() noexcept;
 
     void try_checkpoint_() noexcept;
     void try_compaction_() noexcept;

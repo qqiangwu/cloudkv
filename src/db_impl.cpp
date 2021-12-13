@@ -190,44 +190,7 @@ void db_impl::write_(const write_batch& writes)
     f.get();
 }
 
-void db_impl::commit_(const write_batch& writes)
-{
-    assert(redolog_);
-    assert(active_memtable_);
-
-    redolog_->write(writes);
-
-    // commit
-    try {
-        for (const auto& [key, val, op]: writes) {
-            active_memtable_->add(op, key, val);
-        }
-    } catch (std::exception& e) {
-        spdlog::critical("commit memtable failed after redo done: {}", e.what());
-        std::terminate();
-    }
-
-    try_schedule_checkpoint_();
-}
-
-db_impl::read_ctx db_impl::get_read_ctx_()
-{
-    std::lock_guard _(mut_);
-
-    read_ctx ctx;
-    ctx.memtables.push_back(active_memtable_);
-
-    if (immutable_memtable_) {
-        ctx.memtables.push_back(immutable_memtable_);
-    }
-
-    using namespace ranges;
-    ctx.sstables = meta_.sstables | views::reverse | to<std::vector>();
-
-    return ctx;
-}
-
-void db_impl::try_schedule_checkpoint_() noexcept
+void db_impl::make_room_()
 {
     {
         std::lock_guard _(mut_);
@@ -252,6 +215,43 @@ void db_impl::try_schedule_checkpoint_() noexcept
     }
 
     try_checkpoint_();
+}
+
+void db_impl::commit_(const write_batch& writes)
+{
+    assert(redolog_);
+    assert(active_memtable_);
+
+    make_room_();
+
+    redolog_->write(writes);
+
+    // commit
+    try {
+        for (const auto& [key, val, op]: writes) {
+            active_memtable_->add(op, key, val);
+        }
+    } catch (std::exception& e) {
+        spdlog::critical("commit memtable failed after redo done: {}", e.what());
+        std::terminate();
+    }
+}
+
+db_impl::read_ctx db_impl::get_read_ctx_()
+{
+    std::lock_guard _(mut_);
+
+    read_ctx ctx;
+    ctx.memtables.push_back(active_memtable_);
+
+    if (immutable_memtable_) {
+        ctx.memtables.push_back(immutable_memtable_);
+    }
+
+    using namespace ranges;
+    ctx.sstables = meta_.sstables | views::reverse | to<std::vector>();
+
+    return ctx;
 }
 
 void db_impl::try_checkpoint_() noexcept
