@@ -25,6 +25,7 @@ add_requireconfs("folly.boost", { version = "1.76.0", override = true, configs =
 
 target("cloudkv")
     set_kind("$(kind)")
+    add_headerfiles("include/(*.h)")
     add_includedirs("include", { public = true })
     add_includedirs("src/", { public = false })
     add_files("src/**.cpp")
@@ -38,5 +39,14 @@ target("cloudkv")
     add_packages("scope_guard")
     add_packages("folly")
 
-includes("test/")
+option("with_test")
+    set_default(false)
+    set_showmenu(true)
+    set_description("compile tests or not")
+option_end()
+
+if has_config("with_test") then
+    includes("test/")
+end
+
 includes("util/")
