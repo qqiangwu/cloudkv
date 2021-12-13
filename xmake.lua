@@ -18,7 +18,7 @@ boost_configs = { context = true, filesystem = true, program_options = true, reg
 add_requires("boost 1.76.0", { configs = boost_configs })
 add_requires("fmt 8.0.1")
 add_requires("spdlog v1.9.1", { configs = { fmt_external = true } })
-add_requires("conan::range-v3/0.11.0", { alias = "range-v3" })
+add_requires("range-v3 0.11.0")
 add_requires("scope_guard 0.9.1")
 add_requires("folly 2021.08.02")
 add_requireconfs("folly.boost", { version = "1.76.0", override = true, configs = boost_configs })
