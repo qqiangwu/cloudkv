@@ -34,6 +34,9 @@ jobs:
         with:
           xmake-version: latest
 
+      - name: Config xmake
+        run: xmake f --with_test=y
+
       # Runs a set of commands using the runners shell
       - name: Build
         run: xmake -ay
