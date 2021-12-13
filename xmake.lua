@@ -25,7 +25,7 @@ add_requireconfs("folly.boost", { version = "1.76.0", override = true, configs =
 
 target("cloudkv")
     set_kind("$(kind)")
-    add_headerfiles("include/(*.h)")
+    add_headerfiles("include/(cloudkv/*.h)")
     add_includedirs("include", { public = true })
     add_includedirs("src/", { public = false })
     add_files("src/**.cpp")
