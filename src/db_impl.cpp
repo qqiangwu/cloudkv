@@ -51,6 +51,8 @@ db_impl::db_impl(std::string_view name, const options& opts)
 
     meta_ = metainfo::load(db_path_.meta_info());
     file_id_alloc_.reset(meta_.next_file_id);
+    gc_root_.add(meta_.sstables);
+
     spdlog::info("[startup] load meta: root={} committed_file_id={}", db_path_.root(), meta_.committed_file_id);
 
     for (const auto& sst: meta_.sstables) {
@@ -72,6 +74,7 @@ db_impl::db_impl(std::string_view name, const options& opts)
 
         meta_.store(db_path_.meta_info());
         file_id_alloc_.reset(meta_.next_file_id);
+        gc_root_.add(replay_res.sstables);
 
         try_compaction_();
     }
@@ -236,8 +239,15 @@ try {
         std::lock_guard _(mut_);
         return immutable_memtable_;
     }();
-    auto task = std::make_unique<checkpoint_task>(db_path_, file_id_alloc_, memtable, [this](sstable_ptr sst){
+    auto callback = [this](sstable_ptr sst){
         on_checkpoint_done_(sst);
+    };
+    auto task = std::make_unique<checkpoint_task>(checkpoint_task::checkpoint_ctx{
+        db_path_,
+        file_id_alloc_,
+        gc_root_,
+        std::move(memtable),
+        std::move(callback)
     });
 
     // ignore result
@@ -277,6 +287,7 @@ try {
         db_path_,
         options_,
         file_id_alloc_,
+        gc_root_,
         std::move(sstables),
         std::move(callback)
     });
@@ -365,9 +376,18 @@ void db_impl::update_meta_(const meta_update_args& args)
             meta.committed_file_id,
             old_sst_count,
             sstables.size());
+        // commit
+        // register rollback first
+        SCOPE_FAIL {
+            for (const auto& p: added) {
+                gc_root_.remove(p);
+            }
+        };
+
+        gc_root_.add(added);
         meta.store(db_path_.meta_info());
 
-        // commit
+        // post commit
         strict_lock_guard __(mut_);
         using namespace std;
         swap(meta_.committed_file_id, meta.committed_file_id);
@@ -385,7 +405,7 @@ try {
         return meta_.committed_file_id;
     }();
 
-    auto task = std::make_unique<gc_task>(db_path_, committed_file_id);
+    auto task = std::make_unique<gc_task>(db_path_, gc_root_, committed_file_id);
 
     // ignore result
     task_mgr_.submit(std::move(task));

@@ -3,6 +3,7 @@
 #include "sstable/sstable.h"
 #include "path_conf.h"
 #include "file_id_allocator.h"
+#include "gc_root.h"
 
 namespace cloudkv {
 

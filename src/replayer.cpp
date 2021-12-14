@@ -6,6 +6,7 @@
 #include <range/v3/view.hpp>
 #include <range/v3/action.hpp>
 #include "replayer.h"
+#include "gc_root.h"
 #include "util/fmt_std.h"
 #include "cloudkv/exception.h"
 #include "memtable/redolog_reader.h"
@@ -73,6 +74,7 @@ replay_result replayer::replay()
 
 sstable_ptr replayer::do_replay_(const path_t& redopath)
 {
+    gc_root gc;
     redolog_reader reader(redopath);
     auto mt = std::make_shared<memtable>();
     while (auto entry = reader.next()) {
@@ -86,8 +88,14 @@ sstable_ptr replayer::do_replay_(const path_t& redopath)
     }
 
     sstable_ptr result;
-    checkpoint_task(db_path_, file_id_alloc_, std::move(mt), [&result](const auto& sst){
-        result = sst;
+    checkpoint_task({
+        db_path_,
+        file_id_alloc_,
+        gc,
+        std::move(mt),
+        [&result](const auto& sst){
+            result = sst;
+        }
     }).run();
 
     return result;

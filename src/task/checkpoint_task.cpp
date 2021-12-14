@@ -13,7 +13,10 @@ void checkpoint_task::run()
     using namespace fmt;
     using namespace std::chrono;
 
+    temporary_gc_root gc { gc_root_ };
+
     const auto sst_path = db_path_.sst_path(file_id_alloc_.alloc());
+    gc.add(sst_path);
 
     std::ofstream ofs(sst_path, std::ios::binary);
     if (!ofs) {

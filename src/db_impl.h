@@ -9,6 +9,7 @@
 #include "task/task_manager.h"
 #include "meta.h"
 #include "file_id_allocator.h"
+#include "gc_root.h"
 #include "path_conf.h"
 #include "batch_executor.h"
 
@@ -69,6 +70,7 @@ private:
     std::mutex mut_;      // for db state
     metainfo meta_;
     file_id_allocator file_id_alloc_;
+    gc_root gc_root_;
 
     redolog_ptr redolog_;
     memtable_ptr active_memtable_;

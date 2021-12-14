@@ -2,12 +2,13 @@
 
 #include "task/default_task.h"
 #include "path_conf.h"
+#include "gc_root.h"
 
 namespace cloudkv {
 
 class gc_task : public default_task {
 public:
-    gc_task(const path_conf& db_path, std::uint64_t committed_lsn);
+    gc_task(const path_conf& db_path, gc_root& gcroot, std::uint64_t committed_file_id);
 
     void run() override;
 
@@ -18,7 +19,8 @@ public:
 
 private:
     const path_conf& db_path_;
-    const std::uint64_t committed_lsn_;
+    gc_root& gc_root_;
+    const std::uint64_t committed_file_id_;
 };
 
 }

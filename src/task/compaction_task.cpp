@@ -86,12 +86,16 @@ void compaction_task::run()
     auto streams = to_priority_streams(sstables_to_compaction);
     sstable_vec new_sstables;
 
+    temporary_gc_root gc { gc_root_ };
+
     std::optional<std::string> last_key;
     std::optional<sstable_builder> builder;
     // todo: the algorithm
     while (!streams.empty() && !is_cancelled()) {
         if (!builder) {
-            builder.emplace(db_path_.sst_path(file_id_alloc_.alloc()));
+            auto p = db_path_.sst_path(file_id_alloc_.alloc());
+            gc.add(p);
+            builder.emplace(p);
         }
 
         auto stream = streams.top();
