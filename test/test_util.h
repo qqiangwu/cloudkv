@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <range/v3/view.hpp>
 #include <range/v3/action.hpp>
 #include <range/v3/to_container.hpp>
@@ -25,6 +26,23 @@ struct DBCleaner
     }
 };
 
+struct ScopedTmpDir
+{
+    const fs::path path;
+
+    explicit ScopedTmpDir(const char* dir)
+        : path(fs::temp_directory_path() / fmt::format("tmp.{}", dir))
+    {
+        fs::remove_all(path);
+        fs::create_directory(path);
+    }
+
+    ~ScopedTmpDir()
+    {
+        fs::remove_all(path);
+    }
+};
+
 void create_file(const fs::path& p, const std::string& data = {})
 {
     std::ofstream ofs(p);
@@ -47,6 +65,19 @@ auto make_sst(const cloudkv::path_t& p, int from = 0, int count = 10)
 
     for (const auto& key: keys) {
         builder.add(internal_key{ key, key_type::value }, fmt::format("val-{}-{}", key, p.filename().c_str()));
+    }
+
+    builder.done();
+    return std::make_shared<sstable>(p);
+}
+
+auto make_sst(const cloudkv::path_t& p, const std::map<std::string, std::string> kv)
+{
+    using namespace cloudkv;
+
+    sstable_builder builder(p);
+    for (const auto& [k, v]: kv) {
+        builder.add(internal_key{ k, key_type::value }, v);
     }
 
     builder.done();
