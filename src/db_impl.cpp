@@ -67,7 +67,7 @@ db_impl::db_impl(std::string_view name, const options& opts)
 
         meta_.store(db_path_.meta_info());
 
-        try_gc_();
+        try_compaction_();
     }
 
     meta_.next_lsn = meta_.committed_lsn + 1;
