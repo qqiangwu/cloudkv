@@ -1,19 +1,22 @@
 #pragma once
 
-#include "path_conf.h"
 #include "sstable/sstable.h"
+#include "path_conf.h"
+#include "file_id_allocator.h"
 
 namespace cloudkv {
 
 struct replay_result {
-    std::uint64_t replayed_lsn;
+    std::uint64_t replayed_file_id;
     std::vector<sstable_ptr> sstables;
 };
 
 class replayer {
 public:
-    replayer(const path_conf& db, std::uint64_t committed_lsn)
-        : db_path_(db), committed_lsn_(committed_lsn)
+    replayer(const path_conf& db, file_id_allocator& id_alloc, std::uint64_t committed_file_id)
+        : db_path_(db),
+          file_id_alloc_(id_alloc),
+          committed_file_id_(committed_file_id)
     {
     }
 
@@ -24,7 +27,8 @@ private:
 
 private:
     const path_conf& db_path_;
-    const std::uint64_t committed_lsn_;
+    file_id_allocator& file_id_alloc_;
+    const std::uint64_t committed_file_id_;
 };
 
 }

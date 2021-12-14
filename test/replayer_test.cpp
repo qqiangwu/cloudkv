@@ -24,8 +24,9 @@ TEST(replayer, EmptyRedo)
     create_file(db_path.redo_path(20));
     create_file(db_path.redo_path(30));
 
-    auto res = replayer(db_path, 5).replay();
-    ASSERT_EQ(res.replayed_lsn, 5);
+    file_id_allocator id_alloc;
+    auto res = replayer(db_path, id_alloc, 5).replay();
+    ASSERT_EQ(res.replayed_file_id, 5);
     ASSERT_TRUE(res.sstables.empty());
 }
 
@@ -39,8 +40,9 @@ TEST(replayer, BadRedo)
     fs::create_directories(db_path.sst_dir());
     create_file(db_path.redo_path(10), "1234567");
 
-    auto res = replayer(db_path, 5).replay();
-    ASSERT_EQ(res.replayed_lsn, 5);
+    file_id_allocator id_alloc;
+    auto res = replayer(db_path, id_alloc, 5).replay();
+    ASSERT_EQ(res.replayed_file_id, 5);
     ASSERT_TRUE(res.sstables.empty());
 }
 
@@ -53,9 +55,9 @@ TEST(replayer, Replay)
     fs::create_directories(db_path.redo_dir());
     fs::create_directories(db_path.sst_dir());
 
-    const auto max_lsn = 10;
-    const auto persisted_lsn = 5;
-    for (int i = 1; i <= max_lsn; ++i) {
+    const auto max_file_id = 10;
+    const auto persisted_file_id = 5;
+    for (int i = 1; i <= max_file_id; ++i) {
         redolog log(db_path.redo_path(i));
 
         for (int k = 0; k < 100; ++k) {
@@ -66,7 +68,8 @@ TEST(replayer, Replay)
         }
     }
 
-    auto res = replayer(db_path, persisted_lsn).replay();
-    ASSERT_EQ(res.replayed_lsn, max_lsn);
-    ASSERT_EQ(res.sstables.size(), max_lsn - persisted_lsn);
+    file_id_allocator id_alloc;
+    auto res = replayer(db_path, id_alloc, persisted_file_id).replay();
+    ASSERT_EQ(res.replayed_file_id, max_file_id);
+    ASSERT_EQ(res.sstables.size(), max_file_id - persisted_file_id);
 }

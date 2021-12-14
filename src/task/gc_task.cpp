@@ -10,7 +10,6 @@ gc_task::gc_task(const path_conf& db_path, std::uint64_t committed_lsn)
 {
 }
 
-// todo: how to file gc
 void gc_task::run()
 {
     for (const auto& p: std::filesystem::directory_iterator(db_path_.redo_dir())) {

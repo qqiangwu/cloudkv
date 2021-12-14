@@ -8,6 +8,7 @@
 #include "memtable/redolog.h"
 #include "task/task_manager.h"
 #include "meta.h"
+#include "file_id_allocator.h"
 #include "path_conf.h"
 #include "batch_executor.h"
 
@@ -54,7 +55,7 @@ private:
     struct meta_update_args {
         const std::vector<sstable_ptr>& added;
         const std::vector<sstable_ptr>& removed;
-        std::uint64_t committed_lsn;
+        std::uint64_t committed_file_id;
     };
     void update_meta_(const meta_update_args&);
 
@@ -67,6 +68,7 @@ private:
     std::mutex sys_mut_;  // for meta mutation
     std::mutex mut_;      // for db state
     metainfo meta_;
+    file_id_allocator file_id_alloc_;
 
     redolog_ptr redolog_;
     memtable_ptr active_memtable_;

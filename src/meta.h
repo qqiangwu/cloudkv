@@ -14,8 +14,8 @@ namespace detail {
 }
 
 struct metainfo {
-    std::uint64_t committed_lsn = 0;
-    std::uint64_t next_lsn = 1;
+    std::uint64_t committed_file_id = 0;
+    std::uint64_t next_file_id = 1;
     std::vector<sstable_ptr> sstables;
 
     static metainfo load(const path_t& p);

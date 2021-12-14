@@ -10,7 +10,6 @@
 
 namespace cloudkv {
 
-// todo: how to test without virtual methods?
 class sstable {
 public:
     explicit sstable(const path_t& file);

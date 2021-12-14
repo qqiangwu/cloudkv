@@ -21,7 +21,7 @@ namespace {
 
 struct redo_ctx {
     path_t path;
-    std::uint64_t lsn;
+    std::uint64_t file_id;
 };
 
 }
@@ -36,27 +36,27 @@ replay_result replayer::replay()
     auto redolog_need_replay = redologs
         | views::transform([](const auto& p){
             const std::string_view raw = p.filename().native();
-            std::uint64_t lsn = 0;
-            const auto r = std::from_chars(raw.begin(), raw.end(), lsn);
+            std::uint64_t file_id = 0;
+            const auto r = std::from_chars(raw.begin(), raw.end(), file_id);
             if (r.ec == std::errc::invalid_argument) {
                 spdlog::warn("invalid redolog {} found, ignored for safety", p);
                 return redo_ctx { {}, 0 };
             }
 
-            return redo_ctx { p, lsn };
+            return redo_ctx { p, file_id };
         })
-        | views::filter([committed_lsn = committed_lsn_](const redo_ctx& ctx){
-            return ctx.lsn > committed_lsn;
+        | views::filter([committed_file_id = committed_file_id_](const redo_ctx& ctx){
+            return ctx.file_id > committed_file_id;
         })
         | views::filter([](const redo_ctx& ctx){
             return fs::file_size(ctx.path) > 0;
         })
         | to<std::vector>()
         | actions::sort([](const auto& x, const auto& y){
-            return x.lsn < y.lsn;
+            return x.file_id < y.file_id;
         });
 
-    replay_result res = { committed_lsn_ };
+    replay_result res = { committed_file_id_ };
 
     for (const auto& ctx: redolog_need_replay) {
         auto sst = do_replay_(ctx.path);
@@ -65,7 +65,7 @@ replay_result replayer::replay()
             continue;
         }
         res.sstables.push_back(sst);
-        res.replayed_lsn = ctx.lsn;
+        res.replayed_file_id = ctx.file_id;
     }
 
     return res;
@@ -86,7 +86,7 @@ sstable_ptr replayer::do_replay_(const path_t& redopath)
     }
 
     sstable_ptr result;
-    checkpoint_task(db_path_, std::move(mt), [&result](const auto& sst){
+    checkpoint_task(db_path_, file_id_alloc_, std::move(mt), [&result](const auto& sst){
         result = sst;
     }).run();
 

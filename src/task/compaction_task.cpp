@@ -91,7 +91,7 @@ void compaction_task::run()
     // todo: the algorithm
     while (!streams.empty() && !is_cancelled()) {
         if (!builder) {
-            builder.emplace(db_path_.next_sst_path());
+            builder.emplace(db_path_.sst_path(file_id_alloc_.alloc()));
         }
 
         auto stream = streams.top();

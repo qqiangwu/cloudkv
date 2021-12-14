@@ -14,6 +14,13 @@ namespace cloudkv {
 
 class memtable {
 public:
+    static constexpr std::uint64_t invalid_logfile_id = 0;
+
+    explicit memtable(std::uint64_t logfile_id = invalid_logfile_id)
+        : logfile_id_(logfile_id)
+    {
+    }
+
     void add(key_type op, user_key_ref key, std::string_view value);
 
     std::optional<internal_key_value> query(user_key_ref key);
@@ -24,6 +31,11 @@ public:
     auto items()
     {
         return accessor_t(&map_);
+    }
+
+    std::uint64_t logfile_id() const noexcept
+    {
+        return logfile_id_;
     }
 
     std::uint64_t bytes_used() const noexcept;
@@ -58,6 +70,8 @@ private:
 
     using skip_list_t = folly::ConcurrentSkipList<kv_entry, kv_entry_cmp>;
     using accessor_t = skip_list_t::Accessor;
+
+    const std::uint64_t logfile_id_;
 
     skip_list_t map_ { 10 };
 

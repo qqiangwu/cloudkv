@@ -5,7 +5,6 @@
 
 namespace cloudkv {
 
-// todo: how to define iterator interface
 class kv_iter : private boost::noncopyable {
 public:
     virtual ~kv_iter() = default;

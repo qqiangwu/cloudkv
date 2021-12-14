@@ -50,29 +50,33 @@ db_impl::db_impl(std::string_view name, const options& opts)
     }
 
     meta_ = metainfo::load(db_path_.meta_info());
-    spdlog::info("[startup] load meta: root={} committed_lsn={}", db_path_.root(), meta_.committed_lsn);
+    file_id_alloc_.reset(meta_.next_file_id);
+    spdlog::info("[startup] load meta: root={} committed_file_id={}", db_path_.root(), meta_.committed_file_id);
 
     for (const auto& sst: meta_.sstables) {
         spdlog::info("[startup] load meta: sst={}", sst->path());
     }
 
     spdlog::info("[startup] replay");
-    auto replay_res = replayer(db_path_, meta_.committed_lsn).replay();
-    if (replay_res.replayed_lsn > meta_.committed_lsn) {
-        spdlog::info("[startup] replay done: lsn={}, sst={}", replay_res.replayed_lsn, replay_res.sstables.size());
+    // redo log and sst can share file id, every usable sst's file_id must have been persisted
+    auto replay_res = replayer(db_path_, file_id_alloc_, meta_.committed_file_id).replay();
+    if (replay_res.replayed_file_id > meta_.committed_file_id) {
+        spdlog::info("[startup] replay done: file_id={}, sst={}",
+            replay_res.replayed_file_id,
+            replay_res.sstables.size());
 
         auto& sst = replay_res.sstables;
-        meta_.committed_lsn = replay_res.replayed_lsn;
+        meta_.committed_file_id = replay_res.replayed_file_id;
+        meta_.next_file_id = std::max(meta_.next_file_id, meta_.committed_file_id + 1);
         meta_.sstables.insert(meta_.sstables.end(), sst.begin(), sst.end());
 
         meta_.store(db_path_.meta_info());
+        file_id_alloc_.reset(meta_.next_file_id);
 
         try_compaction_();
     }
 
-    meta_.next_lsn = meta_.committed_lsn + 1;
-    redolog_ = std::make_shared<redolog>(db_path_.redo_path(meta_.next_lsn));
-    ++meta_.next_lsn;
+    redolog_ = std::make_shared<redolog>(db_path_.redo_path(file_id_alloc_.alloc()));
 }
 
 std::optional<std::string> db_impl::query(std::string_view key)
@@ -174,14 +178,14 @@ void db_impl::make_room_()
             return;
         }
 
-        auto new_memtable = std::make_shared<memtable>();
-        auto new_redo = std::make_shared<redolog>(db_path_.redo_path(meta_.next_lsn));
+        auto file_id = file_id_alloc_.alloc();
+        auto new_memtable = std::make_shared<memtable>(file_id);
+        auto new_redo = std::make_shared<redolog>(db_path_.redo_path(file_id));
 
         // commit
         swap(immutable_memtable_, active_memtable_);
         swap(active_memtable_, new_memtable);
         swap(redolog_, new_redo);
-        ++meta_.next_lsn;
 
         spdlog::info("checkpoint issued");
     }
@@ -232,7 +236,7 @@ try {
         std::lock_guard _(mut_);
         return immutable_memtable_;
     }();
-    auto task = std::make_unique<checkpoint_task>(db_path_, memtable, [this](sstable_ptr sst){
+    auto task = std::make_unique<checkpoint_task>(db_path_, file_id_alloc_, memtable, [this](sstable_ptr sst){
         on_checkpoint_done_(sst);
     });
 
@@ -269,7 +273,13 @@ try {
         on_compaction_done_(added, removed);
         compaction_running_.clear();
     };
-    auto task = std::make_unique<compaction_task>(db_path_, options_, std::move(sstables), callback);
+    auto task = std::make_unique<compaction_task>(compaction_task::compaction_ctx{
+        db_path_,
+        options_,
+        file_id_alloc_,
+        std::move(sstables),
+        std::move(callback)
+    });
 
     task_mgr_.submit(std::move(task), [this](const std::exception& e) noexcept {
         spdlog::warn("run compaction task failed [{}]", e.what());
@@ -283,15 +293,15 @@ void db_impl::on_checkpoint_done_(sstable_ptr sst)
 {
     std::vector<sstable_ptr> added { sst };
     std::vector<sstable_ptr> removed;
-    const std::uint64_t committed_lsn = 1 + [this]{
+    const std::uint64_t committed_file_id = [this]{
         std::lock_guard _(mut_);
-        return meta_.committed_lsn;
+        return immutable_memtable_->logfile_id();
     }();
 
     meta_update_args args {
         added,
         removed,
-        committed_lsn
+        committed_file_id
     };
     update_meta_(args);
 
@@ -344,14 +354,15 @@ void db_impl::update_meta_(const meta_update_args& args)
             sstables.swap(new_sstables);
         }
 
-        if (args.committed_lsn > meta.committed_lsn) {
-            meta.committed_lsn = args.committed_lsn;
+        meta.next_file_id = file_id_alloc_.peek_next();
+        if (args.committed_file_id > meta.committed_file_id) {
+            meta.committed_file_id = args.committed_file_id;
         }
 
-        assert(meta.committed_lsn <= meta.next_lsn);
+        assert(meta.committed_file_id < meta.next_file_id);
 
-        spdlog::info("[meta] store, committed_lsn={}, sst={} -> {}",
-            meta.committed_lsn,
+        spdlog::info("[meta] store, committed_file_id={}, sst={} -> {}",
+            meta.committed_file_id,
             old_sst_count,
             sstables.size());
         meta.store(db_path_.meta_info());
@@ -359,7 +370,7 @@ void db_impl::update_meta_(const meta_update_args& args)
         // commit
         strict_lock_guard __(mut_);
         using namespace std;
-        swap(meta_.committed_lsn, meta.committed_lsn);
+        swap(meta_.committed_file_id, meta.committed_file_id);
         swap(meta_.sstables, meta.sstables);
     }
 
@@ -369,12 +380,12 @@ void db_impl::update_meta_(const meta_update_args& args)
 
 void db_impl::try_gc_() noexcept
 try {
-    const auto committed_lsn = [this]{
+    const auto committed_file_id = [this]{
         std::lock_guard _(mut_);
-        return meta_.committed_lsn;
+        return meta_.committed_file_id;
     }();
 
-    auto task = std::make_unique<gc_task>(db_path_, committed_lsn);
+    auto task = std::make_unique<gc_task>(db_path_, committed_file_id);
 
     // ignore result
     task_mgr_.submit(std::move(task));

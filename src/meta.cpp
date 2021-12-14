@@ -16,7 +16,8 @@ namespace fs = std::filesystem;
 namespace {
 
 struct raw_meta {
-    std::uint64_t committed_lsn;
+    std::uint64_t committed_file_id;
+    std::uint64_t next_file_id;
     std::vector<std::string> sstables;
 
     template<class Archive>
@@ -24,15 +25,19 @@ struct raw_meta {
     {
         (void)version;
 
-        ar & committed_lsn;
+        ar & committed_file_id;
+        ar & next_file_id;
         ar & sstables;
     }
 
     static raw_meta from_metainfo(const metainfo& info)
     {
+        assert(info.committed_file_id < info.next_file_id);
+
         raw_meta raw;
 
-        raw.committed_lsn = info.committed_lsn;
+        raw.committed_file_id = info.committed_file_id;
+        raw.next_file_id = info.next_file_id;
 
         for (const auto& p: info.sstables) {
             raw.sstables.push_back(p->path());
@@ -43,10 +48,12 @@ struct raw_meta {
 
     metainfo to_metainfo() const
     {
+        assert(committed_file_id < next_file_id);
+
         metainfo m;
 
-        m.committed_lsn = committed_lsn;
-        m.next_lsn = m.committed_lsn + 1;
+        m.committed_file_id = committed_file_id;
+        m.next_file_id = next_file_id;
 
         for (const auto& p: sstables) {
             m.sstables.push_back(std::make_shared<sstable>(p));

@@ -49,8 +49,6 @@ public:
         return sst_dir() / fmt::format("sst.{}", file_id);
     }
 
-    path_t next_sst_path() const;
-
 private:
     const path_t db_path_;
     const path_t meta_info_;

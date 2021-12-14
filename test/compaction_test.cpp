@@ -8,6 +8,7 @@
 #include "util/fmt_std.h"
 #include "util/iter_util.h"
 #include "test_util.h"
+#include "file_id_allocator.h"
 
 using namespace std;
 using namespace cloudkv;
@@ -45,11 +46,12 @@ TEST(compaction_task, Empty)
     path_conf db_path(db_root);
     fs::create_directories(db_path.sst_dir());
 
+    file_id_allocator id_alloc;
     std::vector<sstable_ptr> sstables;
-    compaction_task(db_path, options{}, sstables, [](const auto& adds, const auto& dels){
+    compaction_task({ db_path, options{}, id_alloc, sstables, [](const auto& adds, const auto& dels){
         EXPECT_TRUE(adds.empty());
         EXPECT_TRUE(dels.empty());
-    }).run();
+    }}).run();
 }
 
 TEST(compaction_task, OneFile)
@@ -60,13 +62,14 @@ TEST(compaction_task, OneFile)
     path_conf db_path(db_root);
     fs::create_directories(db_path.sst_dir());
 
+    file_id_allocator id_alloc;
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
-    std::vector<sstable_ptr> sstables { make_sst(db_path.next_sst_path()) };
-    compaction_task(db_path, options{}, sstables, [&](const auto& adds, const auto& dels){
+    std::vector<sstable_ptr> sstables { make_sst(db_path.sst_path(id_alloc.alloc())) };
+    compaction_task({db_path, options{}, id_alloc, sstables, [&](const auto& adds, const auto& dels){
         added = adds;
         removed = dels;
-    }).run();
+    }}).run();
 
     EXPECT_EQ(added.size(), 1);
     EXPECT_EQ(removed.size(), 1);
@@ -94,18 +97,19 @@ TEST(compaction_task, NotOverlapFile)
     path_conf db_path(db_root);
     fs::create_directories(db_path.sst_dir());
 
+    file_id_allocator id_alloc;
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
     std::vector<sstable_ptr> sstables {
-        make_sst(db_path.next_sst_path(), 0),
-        make_sst(db_path.next_sst_path(), 10),
-        make_sst(db_path.next_sst_path(), 20),
-        make_sst(db_path.next_sst_path(), 30)
+        make_sst(db_path.sst_path(id_alloc.alloc()), 0),
+        make_sst(db_path.sst_path(id_alloc.alloc()), 10),
+        make_sst(db_path.sst_path(id_alloc.alloc()), 20),
+        make_sst(db_path.sst_path(id_alloc.alloc()), 30)
     };
-    compaction_task(db_path, options{}, sstables, [&](const auto& adds, const auto& dels){
+    compaction_task({db_path, options{}, id_alloc, sstables, [&](const auto& adds, const auto& dels){
         added = adds;
         removed = dels;
-    }).run();
+    }}).run();
 
     EXPECT_EQ(added.size(), 1);
     EXPECT_EQ(removed.size(), 4);
@@ -145,10 +149,11 @@ TEST(compaction_task, OverlappedFile)
         make_sst(db_path.sst_path(3), 150, kv_count),
         make_sst(db_path.sst_path(4), 60, kv_count / 10)
     };
-    compaction_task(db_path, options{}, sstables, [&](const auto& adds, const auto& dels){
+    file_id_allocator id_alloc{ 5 };
+    compaction_task({db_path, options{}, id_alloc, sstables, [&](const auto& adds, const auto& dels){
         added = adds;
         removed = dels;
-    }).run();
+    }}).run();
 
     ASSERT_EQ(added.size(), 1);
     ASSERT_EQ(removed.size(), sstables.size());

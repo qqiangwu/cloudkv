@@ -5,6 +5,7 @@
 #include "task/default_task.h"
 #include "path_conf.h"
 #include "cloudkv/options.h"
+#include "file_id_allocator.h"
 
 namespace cloudkv {
 
@@ -13,11 +14,20 @@ public:
     using sstable_vec = std::vector<sstable_ptr>;
     using callback_fn = std::function<void(const sstable_vec&, const sstable_vec&)>;
 
-    compaction_task(const path_conf& db_path, const options& opts, const sstable_vec& sstables, callback_fn fn)
-        : db_path_(db_path),
-          opts_(opts),
-          sstables_(sstables),
-          notify_success_(std::move(fn))
+    struct compaction_ctx {
+        const path_conf& db_path;
+        const options& opts;
+        file_id_allocator& file_id_alloc;
+        sstable_vec sstables;
+        callback_fn fn;
+    };
+
+    explicit compaction_task(compaction_ctx ctx)
+        : db_path_(ctx.db_path),
+          opts_(ctx.opts),
+          file_id_alloc_(ctx.file_id_alloc),
+          sstables_(std::move(ctx.sstables)),
+          notify_success_(std::move(ctx.fn))
     {
     }
 
@@ -34,6 +44,7 @@ private:
 private:
     const path_conf& db_path_;
     const options& opts_;
+    file_id_allocator& file_id_alloc_;
     const sstable_vec sstables_;
     const callback_fn notify_success_;
 };
