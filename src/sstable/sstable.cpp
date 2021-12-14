@@ -7,6 +7,7 @@
 #include "sstable/format.h"
 #include "sstable/sstable.h"
 #include "util/fmt_std.h"
+#include "util/exception_util.h"
 
 using namespace std;
 using namespace cloudkv;

@@ -1,7 +1,8 @@
 #include <cassert>
+#include "cloudkv/exception.h"
 #include "util/fmt_std.h"
 #include "util/format.h"
-#include "cloudkv/exception.h"
+#include "util/exception_util.h"
 #include "memtable/redolog_reader.h"
 
 using namespace cloudkv;

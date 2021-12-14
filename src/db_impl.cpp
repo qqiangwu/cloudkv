@@ -1,4 +1,3 @@
-#include <fstream>
 #include <chrono>
 #include <thread>
 #include <filesystem>
@@ -6,14 +5,13 @@
 #include <range/v3/view.hpp>
 #include <range/v3/algorithm.hpp>
 #include <spdlog/spdlog.h>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
 #include <scope_guard.hpp>
 #include "cloudkv/exception.h"
 #include "db_impl.h"
 #include "replayer.h"
 #include "util/fmt_std.h"
 #include "util/strict_lock_guard.h"
+#include "util/exception_util.h"
 #include "task/gc_task.h"
 #include "task/checkpoint_task.h"
 #include "task/compaction_task.h"
@@ -44,14 +42,14 @@ db_impl::db_impl(std::string_view name, const options& opts)
         fs::create_directory(db_path_.redo_dir());
         fs::create_directory(db_path_.sst_dir());
 
-        store_meta_(metainfo{});
+        meta_.store(db_path_.meta_info());
     }
 
     if (!fs::is_regular_file(db_path_.meta_info())) {
         throw db_corrupted{ fmt::format("invalid db {}, no meta file found", db_path_.root()) };
     }
 
-    meta_ = load_meta_();
+    meta_ = metainfo::load(db_path_.meta_info());
     spdlog::info("[startup] load meta: root={} committed_lsn={}", db_path_.root(), meta_.committed_lsn);
 
     for (const auto& sst: meta_.sstables) {
@@ -66,7 +64,9 @@ db_impl::db_impl(std::string_view name, const options& opts)
         auto& sst = replay_res.sstables;
         meta_.committed_lsn = replay_res.replayed_lsn;
         meta_.sstables.insert(meta_.sstables.end(), sst.begin(), sst.end());
-        store_meta_(meta_);
+
+        meta_.store(db_path_.meta_info());
+
         try_gc_();
     }
 
@@ -153,34 +153,6 @@ void db_impl::TEST_flush()
         std::this_thread::sleep_for(1ms);
     }
     spdlog::warn("active flushed");
-}
-
-void db_impl::store_meta_(const metainfo& meta)
-{
-    const auto mf = db_path_.meta_info();
-    std::ofstream ofs(mf);
-    if (!ofs) {
-        throw_system_error(fmt::format("store meta {} failed", mf));
-    }
-
-    boost::archive::text_oarchive oa(ofs);
-    oa << meta.to_raw();
-}
-
-metainfo db_impl::load_meta_()
-try {
-    std::ifstream ifs(db_path_.meta_info());
-    if (!ifs) {
-        throw_system_error(fmt::format("open meta {} failed", db_path_.meta_info()));
-    }
-
-    boost::archive::text_iarchive ia(ifs);
-    detail::raw_meta raw;
-    ia >> raw;
-
-    return metainfo::from_raw(raw);
-} catch (boost::archive::archive_exception& e) {
-    throw db_corrupted{ fmt::format("db corrupted: {}", e.what()) };
 }
 
 void db_impl::write_(const write_batch& writes)
@@ -382,7 +354,7 @@ void db_impl::update_meta_(const meta_update_args& args)
             meta.committed_lsn,
             old_sst_count,
             sstables.size());
-        store_meta_(meta);
+        meta.store(db_path_.meta_info());
 
         // commit
         strict_lock_guard __(mut_);

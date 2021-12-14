@@ -2,10 +2,10 @@
 #include <cstdint>
 #include <fmt/core.h>
 #include "util/coding.h"
-#include "cloudkv/exception.h"
+#include "util/fmt_std.h"
+#include "util/exception_util.h"
 #include "sstable/format.h"
 #include "sstable/sstable_builder.h"
-#include "util/fmt_std.h"
 
 using namespace std;
 using namespace cloudkv;

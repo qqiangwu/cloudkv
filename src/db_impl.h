@@ -33,12 +33,6 @@ public:
     void TEST_flush();
 
 private:
-
-private:
-    void store_meta_(const metainfo& meta);
-    metainfo load_meta_();
-
-private:
     void write_(const write_batch& batch);
 
     void make_room_();

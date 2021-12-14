@@ -1,4 +1,8 @@
-#include <exception>
+#pragma once
+
+#include <string>
+#include <system_error>
+#include <cerrno>
 
 namespace cloudkv {
 
@@ -9,6 +13,11 @@ try {
     return e.what();
 } catch (...) {
     return "unknown";
+}
+
+inline void throw_system_error(const std::string& msg)
+{
+    throw std::system_error(errno, std::system_category(), msg);
 }
 
 }
