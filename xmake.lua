@@ -2,6 +2,7 @@ add_rules("mode.debug", "mode.release")
 
 set_warnings("allextra", "error")
 set_languages("c++17")
+set_symbols("debug")  -- always use debug symbol
 add_cxflags("-Wno-missing-field-initializers")
 
 package("scope_guard")
