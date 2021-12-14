@@ -4,7 +4,7 @@
 
 #include "util/coding.h"
 
-namespace leveldb {
+namespace cloudkv {
 
 void EncodeFixed32(char* buf, uint32_t value) {
 #if __BYTE_ORDER == __LITTLE_ENDIAN

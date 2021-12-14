@@ -14,7 +14,8 @@
 #include <string.h>
 #include <string>
 
-namespace leveldb {
+// from leveldb
+namespace cloudkv {
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
   const auto kLittleEndian = true;

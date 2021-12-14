@@ -14,6 +14,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include "cloudkv/db.h"
+#include "adaptor/leveldb.h"
 
 using namespace cloudkv;
 
@@ -28,8 +29,8 @@ DEFINE_uint32(thread_cnt, 4, "threads for benchmark");
 DEFINE_uint32(key_size, 16, "key size");
 DEFINE_uint32(val_size, 128, "value size");
 DEFINE_string(db_name, "db_bench", "db name for bench");
+DEFINE_string(db_type, "cloudkv", "cloudkv or leveldb");
 DEFINE_bool(use_existing_db, false, "use existing db or create new");
-
 
 struct Test_conf {
     boost::barrier started;
@@ -149,7 +150,22 @@ Bench_case get_benchmark()
     } else if (FLAGS_benchmark == "readforever") {
         return { read_random_forever, true };
     } else {
-        fmt::print("invalid benchmark {}, abort", FLAGS_benchmark);
+        fmt::print("invalid benchmark {}, abort\n", FLAGS_benchmark);
+        std::exit(1);
+    }
+}
+
+kv_ptr open_db()
+{
+    fmt::print("open {} for test\n", FLAGS_db_type);
+
+    const std::string dbname = FLAGS_db_name;
+    if (FLAGS_db_type == "cloudkv") {
+        return open(dbname, {});
+    } else if (FLAGS_db_type == "leveldb") {
+        return std::make_unique<LevelDBImpl>(options{}, dbname);
+    } else {
+        fmt::print("invalid db_type {}, abort\n", FLAGS_db_type);
         std::exit(1);
     }
 }
@@ -172,7 +188,7 @@ int main(int argc, char** argv)
     Test_conf conf {
         boost::barrier(FLAGS_thread_cnt + 1),
         boost::barrier(FLAGS_thread_cnt, [&stopped]{ stopped = true; }),
-        open(FLAGS_db_name, {})
+        open_db()
     };
 
     std::vector<std::unique_ptr<Thread_ctx>> ctxs;

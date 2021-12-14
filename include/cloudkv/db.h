@@ -15,13 +15,13 @@ struct key_value {
     std::string_view value;
 };
 
+// all operations all atomic
 class kv_store : private boost::noncopyable {
 public:
     virtual ~kv_store() = default;
 
     virtual std::optional<std::string> query(std::string_view key) = 0;
 
-    // partial inserts may occur
     virtual void batch_add(const std::vector<key_value>& key_values) = 0;
 
     virtual void remove(std::string_view key) = 0;

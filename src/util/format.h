@@ -8,8 +8,6 @@
 
 namespace cloudkv {
 
-using namespace leveldb;
-
 inline void encode_str(std::string* buf, std::string_view s)
 {
     PutFixed32(buf, s.size());

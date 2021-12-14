@@ -11,6 +11,7 @@ function all_utils()
 end
 
 add_requires("gflags v2.2.2")
+add_requires("leveldb >=1.20")
 
 for _, util in ipairs(all_utils()) do
 target(util[1])
@@ -22,5 +23,6 @@ target(util[1])
     add_packages("fmt")
     add_packages("gflags")
     add_packages("spdlog")
+    add_packages("leveldb")
     add_deps("cloudkv")
 end

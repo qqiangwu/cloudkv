@@ -9,7 +9,6 @@
 
 using namespace std;
 using namespace cloudkv;
-using namespace leveldb;
 
 sstable_builder::sstable_builder(std::ostream& out)
     : out_(out)
