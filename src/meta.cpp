@@ -87,6 +87,7 @@ void metainfo::store(const path_t& p)
 
     boost::archive::text_oarchive oa(ofs);
     oa << raw_meta::from_metainfo(*this);
+    ofs.close();
 
     // commit
     fs::rename(tmp, p);
