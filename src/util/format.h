@@ -35,4 +35,21 @@ inline std::string_view decode_str(std::string_view buf, std::string* out)
     return buf;
 }
 
+inline std::string_view decode_str(std::string_view buf)
+{
+    const auto size_size = sizeof(uint32_t);
+    if (buf.size() < size_size) {
+        throw std::invalid_argument{ "no str to decode" };
+    }
+
+    const auto str_size = DecodeFixed32(buf.data());
+    buf.remove_prefix(size_size);
+
+    if (buf.size() < str_size) {
+        throw std::invalid_argument{ "no str to decode" };
+    }
+
+    return { buf.data(), str_size };
+}
+
 }

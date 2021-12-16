@@ -9,6 +9,7 @@ struct options {
     std::uint64_t write_buffer_size = 4 * 1024 * 1024;
     std::uint64_t sstable_size = 16 * 1024 * 1024;
     std::uint64_t compaction_water_mark = 8;
+    std::uint32_t block_size = 32 * 1024;
 };
 
 }

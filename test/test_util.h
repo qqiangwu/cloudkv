@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <string>
 #include <range/v3/view.hpp>
 #include <range/v3/action.hpp>
 #include <range/v3/to_container.hpp>
@@ -82,4 +83,15 @@ auto make_sst(const cloudkv::path_t& p, const std::map<std::string, std::string>
 
     builder.done();
     return std::make_shared<sstable>(p);
+}
+
+auto make_kv(int count)
+{
+    std::map<std::string, std::string> r;
+
+    for (const auto i: ranges::views::indices(count)) {
+        r.emplace(fmt::format("key-{}", i), fmt::format("value-{}", i));
+    }
+
+    return r;
 }
