@@ -27,8 +27,7 @@ class block_builder {
 public:
     explicit block_builder(const options& opts);
 
-    // todo: does leveldb cope with internal key?
-    void add(const internal_key& key, std::string_view value);
+    void add(std::string_view key, std::string_view value);
 
     std::string_view done();
 

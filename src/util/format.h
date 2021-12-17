@@ -15,7 +15,8 @@ inline void encode_str(std::string* buf, std::string_view s)
 }
 
 // str format: fix32 + chars
-inline std::string_view decode_str(std::string_view buf, std::string* out)
+template <class Out>
+inline std::string_view decode_str(std::string_view buf, Out* out)
 {
     const auto size_size = sizeof(uint32_t);
     if (buf.size() < size_size) {
@@ -29,7 +30,7 @@ inline std::string_view decode_str(std::string_view buf, std::string* out)
         throw std::invalid_argument{ "no str to decode" };
     }
 
-    out->assign(buf.data(), str_size);
+    *out = Out(buf.data(), str_size);
 
     buf.remove_prefix(str_size);
     return buf;

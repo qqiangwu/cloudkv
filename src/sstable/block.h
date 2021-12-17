@@ -9,7 +9,7 @@ class block {
 public:
     explicit block(std::string_view buf);
 
-    iter_ptr iter();
+    raw_iter_ptr iter();
 
     int count() const
     {

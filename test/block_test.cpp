@@ -15,7 +15,7 @@ block make_block(const std::map<std::string, std::string>& kv)
     block_builder builder({});
 
     for (const auto& [k, v]: kv) {
-        builder.add(internal_key{k, key_type::value}, v);
+        builder.add(k, v);
     }
 
     return block(builder.done());
@@ -32,7 +32,7 @@ TEST(block, Builder)
         ASSERT_EQ(builder.size_in_bytes(), 0);
 
         for (const auto& [k, v]: kv) {
-            builder.add(internal_key{k, key_type::value}, v);
+            builder.add(k, v);
         }
 
         block blk(builder.done());
@@ -43,7 +43,7 @@ TEST(block, Builder)
         while (!iter->is_eof()) {
             const auto kv_in_block = iter->next();
 
-            EXPECT_EQ(kv_in_block.key.user_key(), iter2->first);
+            EXPECT_EQ(kv_in_block.key, iter2->first);
             EXPECT_EQ(kv_in_block.value, iter2->second);
 
             ++iter2;
@@ -76,14 +76,16 @@ TEST(block, Seek)
         ASSERT_TRUE(!it->is_eof());
 
         auto value = it->next();
-        ASSERT_EQ(value.key.user_key(), k);
+        ASSERT_EQ(value.key, k);
+        ASSERT_EQ(value.value, v);
     }
 
     it->seek("4");
     ASSERT_TRUE(!it->is_eof());
 
     auto value = it->next();
-    ASSERT_EQ(value.key.user_key(), "5");
+    ASSERT_EQ(value.key, "5");
+    ASSERT_EQ(value.value, "5");
 
     it->seek("8");
     ASSERT_TRUE(it->is_eof());

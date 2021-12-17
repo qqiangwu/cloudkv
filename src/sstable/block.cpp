@@ -19,7 +19,7 @@ std::uint32_t parse_count(std::string_view buf)
     return DecodeFixed32(buf.data() + buf.size() - u32_size);
 }
 
-class block_iter : public kv_iter {
+class block_iter : public raw_kv_iter {
 public:
     block_iter(std::string_view buf, std::uint32_t count)
         : buf_(buf),
@@ -51,26 +51,24 @@ public:
         return idx_ == count_;
     }
 
-    internal_key_value next() override
+    raw_kv next() override
     {
         const auto offset = get_offset_(idx_);
         ++idx_;
 
-        std::string_view kvbuf = buf_.substr(offset);
-        std::string key;
-        std::string val;
-        key_type type;
-
         try {
+            std::string_view kvbuf = buf_.substr(offset);
+            std::string_view key;
+            std::string_view val;
+
             kvbuf = decode_str(kvbuf, &key);
-            kvbuf = decode_key_type(kvbuf, &type);
             kvbuf = decode_str(kvbuf, &val);
 
             if (kvbuf.data() > offset_table_) {
                 throw data_corrupted{ fmt::format("block corrupted when read index {}", idx_ - 1) };
             }
 
-            return { { std::move(key), type }, std::move(val) };
+            return { key, val };
         } catch (std::invalid_argument&) {
             throw data_corrupted{ fmt::format("block corrupted when read index {}", idx_ - 1) };
         }
@@ -115,7 +113,7 @@ block::block(std::string_view buf)
     }
 }
 
-iter_ptr block::iter()
+raw_iter_ptr block::iter()
 {
     std::string_view buf = buf_;
     buf.remove_suffix(sizeof(std::uint32_t));

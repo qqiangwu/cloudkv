@@ -8,14 +8,13 @@ block_builder::block_builder(const options& opts)
     buf_.reserve(opts.block_size);
 }
 
-void block_builder::add(const internal_key& key, std::string_view value)
+void block_builder::add(std::string_view key, std::string_view value)
 {
-    assert(!key.user_key().empty());
+    assert(!key.empty());
 
     const auto offset = buf_.size();
 
-    encode_str(&buf_, key.user_key());
-    buf_.push_back(static_cast<char>(key.type()));
+    encode_str(&buf_, key);
     encode_str(&buf_, value);
 
     offset_.push_back(offset);
