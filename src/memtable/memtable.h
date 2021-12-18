@@ -8,7 +8,7 @@
 #include <memory>
 #include <optional>
 #include <folly/ConcurrentSkipList.h>
-#include "core.h"
+#include "kv_format.h"
 
 namespace cloudkv {
 

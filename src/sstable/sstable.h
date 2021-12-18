@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <memory>
-#include <optional>
 #include <istream>
 #include "core.h"
 #include "iter.h"
+#include "sstable/format.h"
 
 namespace cloudkv {
 
@@ -14,21 +14,19 @@ class sstable {
 public:
     explicit sstable(const path_t& file);
 
-    std::optional<internal_key_value> query(user_key_ref key);
-
     iter_ptr iter();
 
-    user_key_ref min() const
+    std::string_view min() const
     {
         return key_min_;
     }
 
-    user_key_ref max() const
+    std::string_view max() const
     {
         return key_max_;
     }
 
-    std::size_t count() const
+    std::uint64_t count() const
     {
         return count_;
     }
@@ -44,14 +42,18 @@ public:
     }
 
 private:
+    void load_meta_(std::istream& in, sst::block_handle metahandle);
+
+private:
     class sstable_iter;
 
 private:
     path_t path_;
 
+    sst::block_handle dataindex_;
     std::string key_min_;
     std::string key_max_;
-    std::size_t count_ = 0;
+    std::uint64_t count_ = 0;
     std::uint64_t size_in_bytes_ = 0;
 };
 

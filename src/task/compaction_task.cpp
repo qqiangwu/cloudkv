@@ -7,6 +7,7 @@
 #include "sstable/sstable.h"
 #include "sstable/sstable_builder.h"
 #include "cloudkv/exception.h"
+#include "kv_format.h"
 
 using namespace cloudkv;
 
@@ -18,8 +19,16 @@ struct priority_stream {
     int priority;
 
     priority_stream(iter_ptr iter, int priority_)
-        : it(std::move(iter)), kv(it->next()), priority(priority_)
+        : it(std::move(iter)), priority(priority_)
     {
+        it->seek_first();
+        if (it->is_eof()) {
+            return;
+        }
+
+        const auto current = it->current();
+        kv.key = internal_key::parse(current.key);
+        kv.value = current.value;
     }
 
     bool empty() const
@@ -27,18 +36,35 @@ struct priority_stream {
         return it->is_eof();
     }
 
-    void advance()
+    bool advance()
     {
-        kv = it->next();
+        it->next();
+        if (it->is_eof()) {
+            return false;
+        }
+
+        const auto current = it->current();
+        kv.key = internal_key::parse(current.key);
+        kv.value = current.value;
+
+        return true;
     }
 
-    std::string_view key() const
+    std::string_view user_key() const
     {
+        assert(!it->is_eof());
         return kv.key.user_key();
+    }
+
+    auto raw_key_value() const
+    {
+        assert(!it->is_eof());
+        return it->current();
     }
 
     const internal_key_value& key_value() const
     {
+        assert(!it->is_eof());
         return kv;
     }
 };
@@ -46,11 +72,11 @@ struct priority_stream {
 struct stream_cmp {
     bool operator()(priority_stream& x, priority_stream& y) const
     {
-        if (x.key() == y.key()) {
+        if (x.user_key() == y.user_key()) {
             return x.priority < y.priority;
         }
 
-        return x.key() > y.key();
+        return x.user_key() > y.user_key();
     }
 };
 
@@ -93,32 +119,34 @@ void compaction_task::run()
     // todo: the algorithm
     while (!streams.empty() && !is_cancelled()) {
         if (!builder) {
-            auto p = db_path_.sst_path(file_id_alloc_.alloc());
-            gc.add(p);
-            builder.emplace(p);
+            auto filepath = db_path_.sst_path(file_id_alloc_.alloc());
+            gc.add(filepath);
+            builder.emplace(opts_, filepath);
         }
 
         auto stream = streams.top();
         streams.pop();
+        assert(!stream.empty());
 
-        if (!last_key || last_key.value() != stream.key()) {
-            assert(!last_key || last_key.value() < stream.key());
+        if (!last_key || last_key.value() != stream.user_key()) {
+            assert(!last_key || last_key.value() < stream.user_key());
 
-            const auto& kv = stream.key_value();
+            const auto kv = stream.raw_key_value();
             builder->add(kv.key, kv.value);
             if (builder->size_in_bytes() > opts_.sstable_size) {
                 builder->done();
+
                 new_sstables.push_back(std::make_shared<sstable>(builder->target()));
+
                 builder.reset();
             }
 
-            last_key.emplace(stream.key());
+            last_key.emplace(stream.user_key());
         }
 
-        if (!stream.empty()) {
-            stream.advance();
-            assert(stream.key() > last_key.value());
-            streams.push(stream);
+        if (stream.advance()) {
+            assert(stream.user_key() > last_key.value());
+            streams.push(std::move(stream));
         }
     }
 

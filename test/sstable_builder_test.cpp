@@ -21,7 +21,7 @@ namespace fs = std::filesystem;
 TEST(sstable_builder, Build)
 {
     std::ostringstream out;
-    sstable_builder builder{out};
+    sstable_builder builder{options{}, out};
 
     auto raw_keys = views::ints(0, 1000);
     auto keys = raw_keys | views::transform([](int i){ return std::to_string(i); }) | to<std::vector>() | actions::sort;
@@ -30,7 +30,7 @@ TEST(sstable_builder, Build)
     for (const auto i: raw_keys) {
         const auto& key = keys[i];
         const auto& val = vals[i];
-        builder.add(internal_key{key, key_type::value}, val);
+        builder.add(key, val);
     }
 
     builder.done();
@@ -56,25 +56,15 @@ TEST(sstable_builder, Build)
     EXPECT_EQ(sst.max(), key_max);
 
     auto it = sst.iter();
-    for (std::size_t i = 0; i < sst.count(); ++i) {
+    it->seek_first();
+    for (std::size_t i = 0; i < sst.count(); ++i, it->next()) {
         const auto& k = keys[i];
         const auto& v = vals[i];
 
         ASSERT_TRUE(!it->is_eof());
 
-        const auto kv = it->next();
-        EXPECT_EQ(kv.key.user_key(), k);
-        EXPECT_EQ(kv.value, v);
+        const auto kv = it->current();
+        ASSERT_EQ(kv.key, k);
+        ASSERT_EQ(kv.value, v);
     }
-
-    const string_view test_key = "123";
-
-    auto queried_kv = sst.query(test_key);
-    EXPECT_TRUE(queried_kv);
-    EXPECT_EQ(queried_kv->key.user_key(), "123");
-    EXPECT_EQ(queried_kv->key.type(), key_type::value);
-    EXPECT_EQ(queried_kv->value, "val-123");
-
-    auto nonexist_kv = sst.query(fmt::format("{}{}", key_max, 1));
-    EXPECT_TRUE(!nonexist_kv);
 }

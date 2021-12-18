@@ -1,115 +1,141 @@
 #include <string_view>
 #include <fstream>
 #include <filesystem>
+#include <optional>
 #include <fmt/core.h>
 #include <range/v3/algorithm.hpp>
 #include "cloudkv/exception.h"
 #include "sstable/format.h"
 #include "sstable/sstable.h"
+#include "sstable/block.h"
 #include "util/fmt_std.h"
 #include "util/exception_util.h"
 
 using namespace std;
 using namespace cloudkv;
+using namespace cloudkv::sst;
 
 namespace fs = filesystem;
 
 class sstable::sstable_iter : public kv_iter {
 public:
-    explicit sstable_iter(const path_t& path, std::uint64_t payload_len);
+    explicit sstable_iter(const path_t& path, block_handle dataindex);
 
-    void seek(user_key_ref key) override;
+    void seek_first() override;
+    void seek(std::string_view key) override;
 
     bool is_eof() override;
-    internal_key_value next() override;
+
+    void next() override;
+
+    key_value_pair current() override;
 
 private:
-    std::string read_str_(std::istream& in);
-
-    template <class T>
-    T read_int_(std::istream& in);
-
-    internal_key_value read_kv_(std::istream& in);
+    void load_block_();
 
 private:
     std::ifstream in_;
-    const std::uint64_t payload_len_;
+    std::string buf_;
+
+    std::unique_ptr<block> index_block_;
+    iter_ptr index_iter_;
+
+    std::unique_ptr<block> current_data_block_;
+    iter_ptr current_data_iter_;
 };
 
-std::string sstable::sstable_iter::read_str_(std::istream& in)
-{
-    string buf;
-    buf.resize(str_prefix_size);
-    in.read(buf.data(), str_prefix_size);
-
-    const auto str_size = DecodeFixed32(buf.data());
-    buf.resize(str_size);
-    in.read(buf.data(), str_size);
-
-    return buf;
-}
-
-template <class T>
-T sstable::sstable_iter::read_int_(std::istream& in)
-{
-    static_assert(sizeof(T) == sizeof(uint64_t) || sizeof(T) == sizeof(uint32_t));
-
-    char buf[sizeof(T)];
-
-    in.read(buf, sizeof(buf));
-    if constexpr (sizeof(buf) == sizeof(std::uint64_t)) {
-        return DecodeFixed64(buf);
-    } else {
-        return DecodeFixed32(buf);
-    }
-}
-
-internal_key_value sstable::sstable_iter::read_kv_(std::istream& in)
-{
-    auto key = read_str_(in);
-    auto raw_type = read_int_<uint32_t>(in);
-    auto val = read_str_(in);
-
-    if (raw_type > uint32_t(key_type::tombsome)) {
-        throw data_corrupted{ fmt::format("invalid key type {} founnd", raw_type) };
-    }
-
-    auto type = key_type(raw_type);
-    return { internal_key(key, type), val };
-}
-
-sstable::sstable_iter::sstable_iter(const path_t& path, std::uint64_t payload_len)
-    : in_(path, std::ios::binary), payload_len_(payload_len)
+sstable::sstable_iter::sstable_iter(const path_t& path, sst::block_handle dataindex)
+    : in_(path, std::ios::binary)
 {
     if (!in_) {
         throw db_corrupted{ fmt::format("open sst {} failed", path) };
     }
 
     in_.exceptions(std::ios::failbit | std::ios::badbit);
+
+    const std::uint64_t file_size = fs::file_size(path);
+    if (file_size < dataindex.offset() + dataindex.length()) {
+        throw data_corrupted{ fmt::format("invalid data index handle in sstable {}", path) };
+    }
+
+    std::string buf;
+    buf.resize(dataindex.length());
+
+    in_.seekg(dataindex.offset());
+    in_.read(buf.data(), buf.size());
+    index_block_ = std::make_unique<block>(buf);
+    index_iter_ = index_block_->iter();
 }
 
-// fixme: now we can only seek once
-void sstable::sstable_iter::seek(user_key_ref key)
+void sstable::sstable_iter::load_block_()
 {
-    while (!is_eof()) {
-        const auto saved_pos = in_.tellg();
-        auto kv = next();
-        if (kv.key.user_key() >= key) {
-            in_.seekg(saved_pos);
-            break;
-        }
+    assert(index_iter_);
+    assert(!index_iter_->is_eof());
+
+    auto content = index_iter_->current().value;
+    sst::block_handle handle(content);
+
+    buf_.resize(handle.length());
+
+    in_.seekg(handle.offset());
+    in_.read(buf_.data(), buf_.size());
+
+    // fixme: empty block?
+    current_data_block_ = std::make_unique<block>(buf_);
+    current_data_iter_ = current_data_block_->iter();
+}
+
+void sstable::sstable_iter::seek_first()
+{
+    index_iter_->seek_first();
+    if (index_iter_->is_eof()) {
+        return;
     }
+
+    load_block_();
+    assert(current_data_iter_);
+
+    current_data_iter_->seek_first();
+}
+
+void sstable::sstable_iter::seek(std::string_view key)
+{
+    index_iter_->seek(key);
+    if (index_iter_->is_eof()) {
+        return;
+    }
+
+    load_block_();
+
+    current_data_iter_->seek(key);
 }
 
 bool sstable::sstable_iter::is_eof()
 {
-    return std::uint64_t(in_.tellg()) >= payload_len_;
+    return !current_data_iter_ || current_data_iter_->is_eof();
 }
 
-internal_key_value sstable::sstable_iter::next()
+void sstable::sstable_iter::next()
 {
     assert(!is_eof());
-    return read_kv_(in_);
+    assert(current_data_iter_);
+
+    current_data_iter_->next();
+    if (current_data_iter_->is_eof()) {
+        current_data_iter_.reset();
+
+        index_iter_->next();
+        if (!index_iter_->is_eof()) {
+            load_block_();
+            current_data_iter_->seek_first();
+        }
+    }
+}
+
+kv_iter::key_value_pair sstable::sstable_iter::current()
+{
+    assert(!is_eof());
+    return current_data_iter_->current();
 }
 
 sstable::sstable(const path_t& file)
@@ -123,52 +149,60 @@ sstable::sstable(const path_t& file)
     ifs.exceptions(std::ios::failbit | std::ios::badbit);
 
     const int64_t fsize = fs::file_size(file);
-    if (fsize < sst_foot_size) {
-        throw data_corrupted{ fmt::format("sst {} too small", file) };
+    if (fsize < footer::footer_size) {
+        throw data_corrupted{ fmt::format("sst {} too small for a footer", file) };
     }
 
     std::string buf;
-    buf.resize(sst_foot_size);
-    ifs.seekg(fsize - sst_foot_size);
+    buf.resize(footer::footer_size);
+    ifs.seekg(fsize - footer::footer_size);
     ifs.read(buf.data(), buf.size());
 
-    const int64_t real_foot_size = DecodeFixed32(buf.c_str());
-    if (fsize < real_foot_size + sst_foot_size) {
-        throw data_corrupted{ fmt::format("sst {} too small", file) };
-    }
+    footer f(buf);
+    dataindex_ = f.data_index();
+    load_meta_(ifs, f.meta_index());
 
-    buf.resize(real_foot_size);
-    ifs.seekg(fsize - (real_foot_size + sst_foot_size));
-    ifs.read(buf.data(), buf.size());
-
-    try {
-        string_view p = buf;
-        p = decode_str(p, &key_min_);
-        p = decode_str(p, &key_max_);
-        if (p.size() < sizeof(uint32_t)) {
-            throw data_corrupted{ fmt::format("sst {} footer has no key_count", file) };
-        }
-        count_ = DecodeFixed32(p.data());
-    } catch (std::invalid_argument&) {
-        throw data_corrupted{ fmt::format("sst {} footer is of bad format", file) };
-    }
-
-    size_in_bytes_ = fsize - (real_foot_size + sst_foot_size);
+    size_in_bytes_ = fsize - footer::footer_size;
 }
 
-optional<internal_key_value> sstable::query(user_key_ref key)
+void sstable::load_meta_(std::istream& in, sst::block_handle metahandle)
 {
-    auto it = iter();
-    it->seek(key);
-    if (it->is_eof()) {
-        return nullopt;
+    std::string buf;
+    buf.resize(metahandle.length());
+
+    in.seekg(metahandle.offset());
+    in.read(buf.data(), buf.size());
+
+    block blk(buf);
+
+    auto it = blk.iter();
+    bool count_seen = false;
+    for (it->seek_first(); !it->is_eof(); it->next()) {
+        const auto [k, v] = it->current();
+
+        if (k == sst::metablock_first_key) {
+            key_min_ = v;
+        } else if (k == sst::metablock_last_key) {
+            key_max_ = v;
+        } else if (k == sst::metablock_entry_count) {
+            if (v.size() != sizeof(std::uint64_t)) {
+                throw data_corrupted{ fmt::format("invalid entry_count in metablock") };
+            }
+
+            count_seen = true;
+            count_ = DecodeFixed64(v.data());
+        }
     }
 
-    auto kv = it->next();
-    return kv.key.user_key() == key? optional(std::move(kv)): nullopt;
+    if (!count_seen)  {
+        throw data_corrupted{ "no entry_count in metablock" };
+    }
+    if (key_min_.empty() || key_max_.empty()) {
+        throw data_corrupted{ fmt::format("invalid first_key or last_key in metablock") };
+    }
 }
 
 iter_ptr sstable::iter()
 {
-    return std::make_unique<sstable_iter>(path_, size_in_bytes_);
+    return std::make_unique<sstable_iter>(path_, dataindex_);
 }

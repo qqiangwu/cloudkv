@@ -5,7 +5,6 @@
 #include <string_view>
 #include <vector>
 #include "cloudkv/options.h"
-#include "core.h"
 
 namespace cloudkv {
 

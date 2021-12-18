@@ -59,7 +59,7 @@ TEST(gc_root, SstableExpiration)
     gc_root gc;
 
     for (int i = 0; i < 10; ++i) {
-        auto sst = make_sst(base / fmt::format("sst.{}", i), i);
+        auto sst = make_sst_in_kv_format(base / fmt::format("sst.{}", i), i);
         if (i % 2 == 0) {
             sstables_reachable.push_back(sst);
         } else {

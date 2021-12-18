@@ -5,30 +5,34 @@
 #include <memory>
 #include <fstream>
 #include "sstable/sstable.h"
+#include "sstable/block_builder.h"
+#include "sstable/format.h"
 
 namespace cloudkv {
 
 /**
  * @brief simple format: sorted string list
  *
- * [record1]: key_size|key_chars|key_type|value_size|value_chars
- * [record2]
- * [record3]
+ * [block1]
+ * [block2]
+ * [block3]
  * ...
- * [recordN]
+ * [datablock index]
+ * [metablock]
  * [footer]
- *      min_key: key_size(fix32)|key_chars
- *      max_key: key_size(fix32)|key_chars
- *      key_value_count: fix32
+ *      [datablock index handle]
+ *      [metablockhandle]
+ *      ...
  *
+ * basic guarantee
  */
 class sstable_builder {
 public:
     // todo: remove this
-    explicit sstable_builder(std::ostream& out);
-    explicit sstable_builder(const path_t& p);
+    explicit sstable_builder(const options& opts, std::ostream& out);
+    explicit sstable_builder(const options& opts, const path_t& p);
 
-    void add(const internal_key& key, std::string_view value);
+    void add(std::string_view key, std::string_view value);
 
     void done();
 
@@ -43,18 +47,26 @@ public:
     }
 
 private:
-    std::string build_record_(const internal_key& key, std::string_view value);
-    std::string build_footer_();
+    sst::block_handle flush_block_(std::string_view content);
+    sst::block_handle flush_metablock_();
+
+    void commit_datablock_();
+    void flush_pending_block_();
+    void flush_footer_();
 
 private:
+    const options& options_;
     const path_t path_;
     std::unique_ptr<std::ofstream> buf_;
     std::ostream& out_;
 
-    std::string key_min_;
-    std::string key_max_;
-    int count_ = 0;
+    block_builder datablock_;
+    block_builder datablock_index_;
+
     std::uint64_t size_in_bytes_ = 0;
+    std::uint64_t entry_count_ = 0;
+    std::string first_key_;
+    std::string last_key_;
 };
 
 }

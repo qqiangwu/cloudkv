@@ -8,6 +8,7 @@
 #include "sstable/sstable.h"
 #include "sstable/sstable_builder.h"
 #include "util/fmt_std.h"
+#include "kv_format.h"
 
 namespace fs = std::filesystem;
 
@@ -52,20 +53,25 @@ void create_file(const fs::path& p, const std::string& data = {})
     EXPECT_TRUE(ofs);
 }
 
-auto make_sst(const cloudkv::path_t& p, int from = 0, int count = 10)
+auto make_sst_in_kv_format(const cloudkv::path_t& p, int from = 0, int count = 10)
 {
     using namespace cloudkv;
     using namespace ranges;
 
-    sstable_builder builder(p);
+    sstable_builder builder(options{}, p);
     auto keys = views::ints(from, from + count) | views::transform([](int x){
             return "key-" + std::to_string(x);
         })
         | to<std::vector>
         | actions::sort;
 
+    std::string buf;
     for (const auto& key: keys) {
-        builder.add(internal_key{ key, key_type::value }, fmt::format("val-{}-{}", key, p.filename().c_str()));
+        internal_key(key, key_type::value).encode_to(&buf);
+
+        builder.add(buf, fmt::format("val-{}-{}", key, p.filename().c_str()));
+
+        buf.clear();
     }
 
     builder.done();
@@ -76,9 +82,9 @@ auto make_sst(const cloudkv::path_t& p, const std::map<std::string, std::string>
 {
     using namespace cloudkv;
 
-    sstable_builder builder(p);
+    sstable_builder builder(options{}, p);
     for (const auto& [k, v]: kv) {
-        builder.add(internal_key{ k, key_type::value }, v);
+        builder.add(k, v);
     }
 
     builder.done();

@@ -40,14 +40,19 @@ TEST(sstable, Query)
     auto sst = make_sst(p, kv);
 
     for (const auto& [k, v]: kv) {
-        auto r = sst->query(k);
-        ASSERT_TRUE(r);
-        ASSERT_EQ(r->key.user_key(), k);
-        ASSERT_EQ(r->key.type(), key_type::value);
-        ASSERT_EQ(r->value, v);
+        auto it = sst->iter();
+        it->seek(k);
+        ASSERT_TRUE(!it->is_eof());
 
-        r = sst->query("x" + k);
-        ASSERT_FALSE(r);
+        const auto [key, val] = it->current();
+        ASSERT_EQ(key, k);
+        ASSERT_EQ(val, v);
+
+        it->seek("x" + k);
+        if (!it->is_eof()) {
+            const auto nkey = it->current().key;
+            ASSERT_GE(nkey, k);
+        }
     }
 }
 
@@ -67,14 +72,12 @@ TEST(sstable, QueryRange)
     ASSERT_EQ(sst->count(), kv.size());
     auto it1 = sst->iter();
     auto it2 = kv.begin();
-    while (!it1->is_eof()) {
+    for (it1->seek_first(); !it1->is_eof(); it1->next(), ++it2) {
         ASSERT_NE(it2, kv.end());
 
-        auto v1 = it1->next();
-        ASSERT_EQ(v1.key.user_key(), it2->first);
+        auto v1 = it1->current();
+        ASSERT_EQ(v1.key, it2->first);
         ASSERT_EQ(v1.value, it2->second);
-
-        ++it2;
     }
 
     ASSERT_EQ(it2, kv.end());

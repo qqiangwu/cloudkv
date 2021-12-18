@@ -40,13 +40,11 @@ TEST(block, Builder)
 
         auto iter = blk.iter();
         auto iter2 = kv.begin();
-        while (!iter->is_eof()) {
-            const auto kv_in_block = iter->next();
+        for (iter->seek_first(); !iter->is_eof(); iter->next(), ++iter2) {
+            const auto kv_in_block = iter->current();
 
-            EXPECT_EQ(kv_in_block.key, iter2->first);
-            EXPECT_EQ(kv_in_block.value, iter2->second);
-
-            ++iter2;
+            ASSERT_EQ(kv_in_block.key, iter2->first);
+            ASSERT_EQ(kv_in_block.value, iter2->second);
         }
 
         ASSERT_EQ(iter2, kv.end());
@@ -71,11 +69,16 @@ TEST(block, Seek)
     auto it = blk.iter();
     ASSERT_TRUE(it);
 
+    it->seek_first();
+    auto value = it->current();
+    ASSERT_EQ(value.key, kv.begin()->first);
+    ASSERT_EQ(value.value, kv.begin()->second);
+
     for (const auto& [k, v]: kv) {
         it->seek(k);
         ASSERT_TRUE(!it->is_eof());
 
-        auto value = it->next();
+        auto value = it->current();
         ASSERT_EQ(value.key, k);
         ASSERT_EQ(value.value, v);
     }
@@ -83,7 +86,7 @@ TEST(block, Seek)
     it->seek("4");
     ASSERT_TRUE(!it->is_eof());
 
-    auto value = it->next();
+    value = it->current();
     ASSERT_EQ(value.key, "5");
     ASSERT_EQ(value.value, "5");
 

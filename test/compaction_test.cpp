@@ -47,7 +47,7 @@ TEST(compaction_task, OneFile)
 
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
-    std::vector<sstable_ptr> sstables { make_sst(db_path.sst_path(id_alloc.alloc())) };
+    std::vector<sstable_ptr> sstables { make_sst_in_kv_format(db_path.sst_path(id_alloc.alloc())) };
     compaction_task({db_path, options{}, id_alloc, gc, sstables, [&](const auto& adds, const auto& dels){
         added = adds;
         removed = dels;
@@ -82,10 +82,10 @@ TEST(compaction_task, NotOverlapFile)
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
     std::vector<sstable_ptr> sstables {
-        make_sst(db_path.sst_path(id_alloc.alloc()), 0),
-        make_sst(db_path.sst_path(id_alloc.alloc()), 10),
-        make_sst(db_path.sst_path(id_alloc.alloc()), 20),
-        make_sst(db_path.sst_path(id_alloc.alloc()), 30)
+        make_sst_in_kv_format(db_path.sst_path(id_alloc.alloc()), 0),
+        make_sst_in_kv_format(db_path.sst_path(id_alloc.alloc()), 10),
+        make_sst_in_kv_format(db_path.sst_path(id_alloc.alloc()), 20),
+        make_sst_in_kv_format(db_path.sst_path(id_alloc.alloc()), 30)
     };
     compaction_task({db_path, options{}, id_alloc, gc, sstables, [&](const auto& adds, const auto& dels){
         added = adds;
@@ -105,8 +105,9 @@ TEST(compaction_task, NotOverlapFile)
     const auto& sst = added.front();
     EXPECT_EQ(sst->count(), answer.size());
 
+    auto iter = sst->iter();
     for (const auto& [k, v]: answer) {
-        auto value_in_sst = sst->query(k);
+        auto value_in_sst = query_key(iter, k);
         EXPECT_TRUE(value_in_sst);
         EXPECT_EQ(value_in_sst.value().value, v);
     }
@@ -124,11 +125,11 @@ TEST(compaction_task, OverlappedFile)
     std::vector<sstable_ptr> added;
     std::vector<sstable_ptr> removed;
     std::vector<sstable_ptr> sstables {
-        make_sst(db_path.sst_path(0), 0, kv_count),
-        make_sst(db_path.sst_path(1), 50, kv_count),
-        make_sst(db_path.sst_path(2), 100, kv_count),
-        make_sst(db_path.sst_path(3), 150, kv_count),
-        make_sst(db_path.sst_path(4), 60, kv_count / 10)
+        make_sst_in_kv_format(db_path.sst_path(0), 0, kv_count),
+        make_sst_in_kv_format(db_path.sst_path(1), 50, kv_count),
+        make_sst_in_kv_format(db_path.sst_path(2), 100, kv_count),
+        make_sst_in_kv_format(db_path.sst_path(3), 150, kv_count),
+        make_sst_in_kv_format(db_path.sst_path(4), 60, kv_count / 10)
     };
     file_id_allocator id_alloc{ 5 };
     compaction_task({db_path, options{}, id_alloc, gc, sstables, [&](const auto& adds, const auto& dels){
@@ -149,8 +150,9 @@ TEST(compaction_task, OverlappedFile)
     const auto& sst = added.front();
     ASSERT_EQ(sst->count(), answer.size());
 
+    auto iter = sst->iter();
     for (const auto& [k, v]: answer) {
-        auto value_in_sst = sst->query(k);
+        auto value_in_sst = query_key(iter, k);
         ASSERT_TRUE(value_in_sst);
         EXPECT_EQ(value_in_sst.value().value, v);
     }

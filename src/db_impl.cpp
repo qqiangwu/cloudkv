@@ -7,14 +7,16 @@
 #include <spdlog/spdlog.h>
 #include <scope_guard.hpp>
 #include "cloudkv/exception.h"
-#include "db_impl.h"
-#include "replayer.h"
 #include "util/fmt_std.h"
 #include "util/strict_lock_guard.h"
 #include "util/exception_util.h"
+#include "util/iter_util.h"
 #include "task/gc_task.h"
 #include "task/checkpoint_task.h"
 #include "task/compaction_task.h"
+#include "db_impl.h"
+#include "kv_format.h"
+#include "replayer.h"
 
 using namespace cloudkv;
 using namespace std::chrono_literals;
@@ -94,9 +96,9 @@ std::optional<std::string> db_impl::query(std::string_view key)
     }
 
     for (const auto& sst: ctx.sstables) {
-        auto r = sst->query(key);
-        if (r) {
-            return r.value().key.is_deleted()? nullopt: std::optional(std::move(r.value().value));
+        auto p = query_key(sst->iter(), key);
+        if (p) {
+            return p->key.is_deleted()? std::nullopt: std::optional(p->value);
         }
     }
 

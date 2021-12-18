@@ -10,8 +10,11 @@
 using namespace std;
 using namespace cloudkv;
 
-sstable_builder::sstable_builder(std::ostream& out)
-    : out_(out)
+sstable_builder::sstable_builder(const options& opts, std::ostream& out)
+    : options_(opts),
+      out_(out),
+      datablock_(options_),
+      datablock_index_(options_)
 {
     if (!out_) {
         throw_system_error(fmt::format("create sst failed"));
@@ -20,10 +23,13 @@ sstable_builder::sstable_builder(std::ostream& out)
     out_.exceptions(std::ios::failbit | std::ios::badbit);
 }
 
-sstable_builder::sstable_builder(const path_t& p)
-    : path_(p),
+sstable_builder::sstable_builder(const options& opts, const path_t& p)
+    : options_(opts),
+      path_(p),
       buf_(std::make_unique<std::ofstream>(p, std::ios::binary)),
-      out_(*buf_.get())
+      out_(*buf_.get()),
+      datablock_(options_),
+      datablock_index_(options_)
 {
     if (!out_) {
         throw_system_error(fmt::format("create sst {} failed", path_));
@@ -32,62 +38,94 @@ sstable_builder::sstable_builder(const path_t& p)
     out_.exceptions(std::ios::failbit | std::ios::badbit);
 }
 
-void sstable_builder::add(const internal_key& key, std::string_view value)
+void sstable_builder::add(std::string_view key, std::string_view value)
 {
-    assert(key_max_.empty() || key_max_ <= key.user_key());
+    assert(!key.empty());
+    assert(first_key_.empty() || first_key_ <= last_key_);
+    assert(last_key_.empty() || last_key_ < key);
 
-    auto record = build_record_(key, value);
-    out_.write(record.c_str(), record.size());
-    if (!out_) {
-        throw_system_error("add key value failed");
+    datablock_.add(key, value);
+    if (first_key_.empty()) {
+        first_key_ = key;
     }
+    last_key_ = key;
+    size_in_bytes_ += key.size() + value.size() + 2 * sizeof(std::uint32_t);  // uint32_t for str length
+    ++entry_count_;
 
-    size_in_bytes_ += record.size();
-    if (key_max_.empty()) {
-        assert(key_min_.empty());
-        key_min_ = key.user_key();
+    if (datablock_.size_in_bytes() >= options_.block_size) {
+        commit_datablock_();
     }
-
-    key_max_ = key.user_key();
-    ++count_;
 }
 
 void sstable_builder::done()
 {
-    assert(count_ > 0);
-    assert(!key_min_.empty());
-    assert(!key_max_.empty());
+    flush_pending_block_();
+    flush_footer_();
 
-    auto footer = build_footer_();
-    out_.write(footer.c_str(), footer.size());
+    // commit
     out_.flush();
-    if (!out_) {
-        throw_system_error("flush sstable failed");
-    }
 }
 
-std::string sstable_builder::build_record_(const internal_key& key, std::string_view value)
+sst::block_handle sstable_builder::flush_block_(std::string_view content)
 {
+    assert(!content.empty());
+
+    const std::uint64_t offset = out_.tellp();
+    const std::uint64_t length = content.length();
+    // todo: add crc
+
+    out_.write(content.data(), content.size());
+
+    return sst::block_handle{ offset, length };
+}
+
+sst::block_handle sstable_builder::flush_metablock_()
+{
+    block_builder metablock(options_);
+
     std::string buf;
+    buf.reserve(sizeof(entry_count_));
+    PutFixed64(&buf, entry_count_);
 
-    encode_str(&buf, key.user_key());
+    metablock.add(sst::metablock_first_key, first_key_);
+    metablock.add(sst::metablock_last_key, last_key_);
+    metablock.add(sst::metablock_entry_count, buf);
 
-    PutFixed32(&buf, std::uint32_t(key.type()));
-
-    encode_str(&buf, value);
-
-    return buf;
+    return flush_block_(metablock.done());
 }
 
-std::string sstable_builder::build_footer_()
+void sstable_builder::commit_datablock_()
 {
-    std::string footer;
+    assert(datablock_.size_in_bytes() > 0);
+    assert(!last_key_.empty());
 
-    encode_str(&footer, key_min_);
-    encode_str(&footer, key_max_);
+    auto handle = flush_block_(datablock_.done());
 
-    PutFixed32(&footer, count_);
-    PutFixed32(&footer, footer.size());
+    std::string buf;
+    handle.encode_to(&buf);
+    datablock_index_.add(last_key_, buf);
 
-    return footer;
+    datablock_.reset();
+}
+
+void sstable_builder::flush_pending_block_()
+{
+    if (datablock_.size_in_bytes() == 0) {
+        return;
+    }
+
+    commit_datablock_();
+}
+
+void sstable_builder::flush_footer_()
+{
+    auto dataindex_handle = flush_block_(datablock_index_.done());
+    auto meta_handle = flush_metablock_();
+
+    sst::footer foot(dataindex_handle, meta_handle);
+
+    std::string buf;
+    foot.encode_to(&buf);
+
+    out_.write(buf.data(), buf.size());
 }

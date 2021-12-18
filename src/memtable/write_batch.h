@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "core.h"
+#include "kv_format.h"
 
 namespace cloudkv {
 

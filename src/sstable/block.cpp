@@ -19,7 +19,7 @@ std::uint32_t parse_count(std::string_view buf)
     return DecodeFixed32(buf.data() + buf.size() - u32_size);
 }
 
-class block_iter : public raw_kv_iter {
+class block_iter : public kv_iter {
 public:
     block_iter(std::string_view buf, std::uint32_t count)
         : buf_(buf),
@@ -29,7 +29,12 @@ public:
         assert(buf_.size() >= count_ * sizeof(std::uint32_t));
     }
 
-    void seek(user_key_ref key) override
+    void seek_first() override
+    {
+        seek_to_index_(0);
+    }
+
+    void seek(std::string_view key) override
     {
         std::uint32_t first = 0;
         std::uint32_t last = count_;
@@ -43,7 +48,7 @@ public:
             }
         }
 
-        idx_ = first;
+        seek_to_index_(first);
     }
 
     bool is_eof() override
@@ -51,27 +56,18 @@ public:
         return idx_ == count_;
     }
 
-    raw_kv next() override
+    void next() override
     {
-        const auto offset = get_offset_(idx_);
-        ++idx_;
+        assert(!is_eof());
+        seek_to_index_(idx_ + 1);
+    }
 
-        try {
-            std::string_view kvbuf = buf_.substr(offset);
-            std::string_view key;
-            std::string_view val;
+    key_value_pair current() override
+    {
+        assert(!is_eof());
+        assert(!current_key_.empty());
 
-            kvbuf = decode_str(kvbuf, &key);
-            kvbuf = decode_str(kvbuf, &val);
-
-            if (kvbuf.data() > offset_table_) {
-                throw data_corrupted{ fmt::format("block corrupted when read index {}", idx_ - 1) };
-            }
-
-            return { key, val };
-        } catch (std::invalid_argument&) {
-            throw data_corrupted{ fmt::format("block corrupted when read index {}", idx_ - 1) };
-        }
+        return { current_key_, current_value_ };
     }
 
 private:
@@ -96,11 +92,38 @@ private:
         }
     }
 
+    void seek_to_index_(std::uint32_t idx)
+    {
+        assert(idx <= count_);
+
+        idx_ = idx;
+        if (idx_ == count_) {
+            return;
+        }
+
+        try {
+            const auto offset = get_offset_(idx_);
+            std::string_view kvbuf = buf_.substr(offset);
+
+            kvbuf = decode_str(kvbuf, &current_key_);
+            kvbuf = decode_str(kvbuf, &current_value_);
+
+            if (kvbuf.data() > offset_table_) {
+                throw data_corrupted{ fmt::format("block corrupted when read index {}", idx_ - 1) };
+            }
+        } catch (std::invalid_argument&) {
+            throw data_corrupted{ fmt::format("block corrupted when read index {}", idx_ - 1) };
+        }
+    }
+
 private:
     const std::string_view buf_;
     const std::uint32_t count_;
     const char* offset_table_;
     std::uint32_t idx_ = 0;
+
+    std::string_view current_key_;
+    std::string_view current_value_;
 };
 
 }
@@ -113,7 +136,7 @@ block::block(std::string_view buf)
     }
 }
 
-raw_iter_ptr block::iter()
+iter_ptr block::iter()
 {
     std::string_view buf = buf_;
     buf.remove_suffix(sizeof(std::uint32_t));

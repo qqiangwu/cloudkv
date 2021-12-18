@@ -4,23 +4,21 @@
 #include <string>
 #include <string_view>
 #include <stdexcept>
-#include "core.h"
 #include "util/format.h"
 
 namespace cloudkv {
 
-constexpr std::int32_t sst_foot_size = sizeof(std::uint32_t);
-constexpr std::int32_t str_prefix_size = sizeof(std::uint32_t);
-
-std::string_view decode_key_type(std::string_view, key_type* type);
-
 namespace sst {
+
+inline constexpr std::string_view metablock_first_key = "first_key";
+inline constexpr std::string_view metablock_last_key = "last_key";
+inline constexpr std::string_view metablock_entry_count = "entry_count";
 
 class block_handle {
 public:
     enum { block_handle_size = 2 * sizeof(std::uint64_t) };
 
-    block_handle(std::uint64_t offset, std::uint64_t length)
+    explicit block_handle(std::uint64_t offset = -1, std::uint64_t length = -1)
         : offset_(offset), length_(length)
     {
     }

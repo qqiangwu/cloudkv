@@ -7,12 +7,6 @@
 
 namespace cloudkv {
 
-namespace detail {
-
-
-
-}
-
 struct metainfo {
     std::uint64_t committed_file_id = 0;
     std::uint64_t next_file_id = 1;
