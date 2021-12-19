@@ -19,11 +19,13 @@ public:
     void seek_first() override
     {
         internal_iter_->seek_first();
+        skip_deleted_();
     }
 
     void seek(std::string_view key) override
     {
         internal_iter_->seek(key);
+        skip_deleted_();
     }
 
     bool is_eof() override
@@ -34,6 +36,7 @@ public:
     void next() override
     {
         internal_iter_->next();
+        skip_deleted_();
     }
 
     key_value_pair current() override
@@ -45,6 +48,19 @@ public:
         kv.key.remove_suffix(1);
 
         return kv;
+    }
+
+private:
+    void skip_deleted_()
+    {
+        while (!internal_iter_->is_eof()) {
+            const auto ikey = internal_key::parse(internal_iter_->current().key);
+            if (!ikey.is_deleted()) {
+                break;
+            }
+
+            internal_iter_->next();
+        }
     }
 
 private:

@@ -26,3 +26,33 @@ TEST(db_iterator, QueryRange)
         ASSERT_EQ(v, kv_iter->second);
     }
 }
+
+TEST(db_iterator, DeletedRemoved)
+{
+    auto kv = make_kv(1024, 2);
+    std::map<std::string, std::string> left_kv;
+
+    memtable mt;
+    int i = 0;
+    for (const auto& [k ,v]: kv) {
+        if (++i % 8 == 0) {
+            mt.add(key_type::tombsome, k, "");
+        } else {
+            mt.add(key_type::value, k, v);
+            left_kv.emplace(k, v);
+        }
+    }
+
+    auto iter = std::make_unique<db_iterator>(mt.iter());
+    auto kv_iter = left_kv.begin();
+
+    for (iter->seek_first(); !iter->is_eof(); iter->next(), ++kv_iter) {
+        ASSERT_TRUE(kv_iter != left_kv.end());
+
+        const auto [k, v] = iter->current();
+        ASSERT_EQ(k, kv_iter->first);
+        ASSERT_EQ(v, kv_iter->second);
+    }
+
+    ASSERT_TRUE(kv_iter == left_kv.end());
+}

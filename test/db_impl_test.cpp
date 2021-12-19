@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 #include "cloudkv/exception.h"
 #include "db_impl.h"
+#include "test_util.h"
 
 using namespace std;
 using namespace cloudkv;
@@ -103,6 +104,39 @@ TEST(db, MultiInsert)
         ASSERT_TRUE(r);
         ASSERT_EQ(r.value(), val);
     }
+}
+
+TEST(db, QueryRange)
+{
+    Cleanup _;
+
+    auto db = open(db_name, options());
+    ASSERT_TRUE(db);
+
+    std::map<std::string, std::string> testkv;
+    int i = 0;
+    for (const auto& [k, v]: make_kv(2048, 3)) {
+        if (++i % 8 == 0) {
+            db->remove(k);
+        } else {
+            db->batch_add({{ k, v }});
+            testkv.emplace(k, v);
+        }
+    }
+
+    auto it = db->iter();
+    auto test_it = testkv.begin();
+    for (it->seek_first(); !it->is_eof(); it->next(), ++test_it) {
+        ASSERT_TRUE(test_it != testkv.end());
+
+        const auto& [testk, testv] = *test_it;
+        const auto [dbkey, dbval] = it->current();
+
+        ASSERT_EQ(testk, dbkey);
+        ASSERT_EQ(testv, dbval);
+    }
+
+    ASSERT_TRUE(test_it == testkv.end());
 }
 
 TEST(db, Checkpoint)
