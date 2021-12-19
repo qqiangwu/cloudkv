@@ -3,6 +3,7 @@
 #include <string>
 #include <optional>
 #include <fstream>
+#include "core.h"
 #include "kv_format.h"
 
 namespace cloudkv {

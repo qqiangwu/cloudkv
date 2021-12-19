@@ -150,6 +150,12 @@ void compaction_task::run()
         }
     }
 
+    if (is_cancelled()) {
+        spdlog::warn("[compaction] task cancelled");
+        notify_success_({}, {});
+        return;
+    }
+
     if (builder && builder->size_in_bytes() > 0) {
         builder->done();
         new_sstables.push_back(std::make_shared<sstable>(builder->target()));

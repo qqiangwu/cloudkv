@@ -326,6 +326,10 @@ void db_impl::on_checkpoint_done_(sstable_ptr sst)
 
 void db_impl::on_compaction_done_(const std::vector<sstable_ptr>& added, const std::vector<sstable_ptr>& removed)
 {
+    if (added.empty() && removed.empty()) {
+        return;
+    }
+
     meta_update_args args {
         added,
         removed,

@@ -65,13 +65,9 @@ auto make_sst_in_kv_format(const cloudkv::path_t& p, int from = 0, int count = 1
         | to<std::vector>
         | actions::sort;
 
-    std::string buf;
     for (const auto& key: keys) {
-        internal_key(key, key_type::value).encode_to(&buf);
-
-        builder.add(buf, fmt::format("val-{}-{}", key, p.filename().c_str()));
-
-        buf.clear();
+        builder.add(internal_key{key, key_type::value}.underlying_key(),
+            fmt::format("val-{}-{}", key, p.filename().c_str()));
     }
 
     builder.done();
@@ -91,11 +87,13 @@ auto make_sst(const cloudkv::path_t& p, const std::map<std::string, std::string>
     return std::make_shared<sstable>(p);
 }
 
-auto make_kv(int count)
+auto make_kv(int count, int stride = 1)
 {
+    using namespace ranges;
+
     std::map<std::string, std::string> r;
 
-    for (const auto i: ranges::views::indices(count)) {
+    for (const auto i: views::indices(count * stride) | views::stride(stride)) {
         r.emplace(fmt::format("key-{}", i), fmt::format("value-{}", i));
     }
 

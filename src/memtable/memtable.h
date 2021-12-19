@@ -2,13 +2,14 @@
 
 #include <cstdint>
 #include <map>
-#include <mutex>
+#include <atomic>
 #include <utility>
 #include <vector>
 #include <memory>
 #include <optional>
 #include <folly/ConcurrentSkipList.h>
 #include "kv_format.h"
+#include "iter.h"
 
 namespace cloudkv {
 
@@ -25,39 +26,39 @@ public:
 
     std::optional<internal_key_value> query(user_key_ref key);
 
-    std::vector<internal_key_value> query_range(const key_range& r);
-
-    // todo: refactor
-    auto items()
-    {
-        return accessor_t(&map_);
-    }
+    iter_ptr iter();
 
     std::uint64_t logfile_id() const noexcept
     {
         return logfile_id_;
     }
 
-    std::uint64_t bytes_used() const noexcept;
+    std::uint64_t bytes_used() const noexcept
+    {
+        return bytes_used_.load(std::memory_order_relaxed);
+    }
 
 private:
     struct kv_entry {
-        internal_key_value kv;
-        user_key_ref key;
+        internal_key ikey;
+        std::string value;
+        std::string_view ukey;
 
         kv_entry() = default;  // required by skip_list_t
 
         explicit kv_entry(user_key_ref key)
-            : key(key)
-        {}
+            : ukey(key)
+        {
+        }
 
-        kv_entry(key_type op, user_key_ref key, std::string_view value)
-            : kv{{key, op}, std::string(value)}
-        {}
+        kv_entry(key_type op, user_key_ref key, std::string_view val)
+            : ikey{key, op}, value(val)
+        {
+        }
 
         user_key_ref user_key() const
         {
-            return key.empty()? kv.key.user_key(): key;
+            return ukey.empty()? ikey.user_key(): ukey;
         }
     };
 
@@ -71,12 +72,14 @@ private:
     using skip_list_t = folly::ConcurrentSkipList<kv_entry, kv_entry_cmp>;
     using accessor_t = skip_list_t::Accessor;
 
+    class memtable_iter;
+    friend memtable_iter;
+
     const std::uint64_t logfile_id_;
 
     skip_list_t map_ { 10 };
 
-    mutable std::mutex  mut_;
-    std::uint64_t bytes_used_ = 0;
+    std::atomic_uint64_t bytes_used_ { 0 };
 };
 
 using memtable_ptr = std::shared_ptr<memtable>;

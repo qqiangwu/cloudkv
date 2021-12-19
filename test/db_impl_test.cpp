@@ -142,8 +142,8 @@ TEST(db, Persistent)
 
     for (auto i: indices(opts.write_buffer_size)) {
         auto r = db->query("key-" + std::to_string(i));
-        EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), "val-" + std::to_string(i));
+        ASSERT_TRUE(r);
+        ASSERT_EQ(r.value(), "val-" + std::to_string(i));
     }
 
     static_cast<db_impl*>(db.get())->TEST_flush();
@@ -153,7 +153,7 @@ TEST(db, Persistent)
 
     for (auto i: indices(opts.write_buffer_size)) {
         auto r = db->query("key-" + std::to_string(i));
-        EXPECT_TRUE(r);
-        EXPECT_EQ(r.value(), "val-" + std::to_string(i));
+        ASSERT_TRUE(r);
+        ASSERT_EQ(r.value(), "val-" + std::to_string(i));
     }
 }

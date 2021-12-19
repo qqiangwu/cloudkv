@@ -25,11 +25,10 @@ void checkpoint_task::run()
     // fixme
     sstable_builder builder({}, ofs);
 
-    std::string keybuf;
-    for (const auto& kv: memtable_->items()) {
-        kv.kv.key.encode_to(&keybuf);
-        builder.add(keybuf, kv.kv.value);
-        keybuf.clear();
+    auto it = memtable_->iter();
+    for (it->seek_first(); !it->is_eof(); it->next()) {
+        const auto kv = it->current();
+        builder.add(kv.key, kv.value);
     }
 
     builder.done();

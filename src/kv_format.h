@@ -1,17 +1,12 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
-#include "core.h"
 
 namespace cloudkv {
 
 using user_key_ref = std::string_view;
-
-struct key_range {
-    user_key_ref start;
-    user_key_ref end;
-};
 
 enum class key_type : std::uint8_t {
     value,
@@ -23,46 +18,46 @@ public:
     internal_key() = default;
 
     internal_key(user_key_ref key, key_type type)
-        : user_key_(key), type_(type)
-    {}
+    {
+        ikey_.reserve(key.size() + 1);
+        ikey_.assign(key.begin(), key.end());
+        ikey_.push_back(static_cast<char>(type));
+    }
 
     static internal_key parse(std::string_view buf);
 
     user_key_ref user_key() const
     {
-        return user_key_;
+        return { ikey_.data(), ikey_.size() - 1 };
     }
 
     key_type type() const
     {
-        return type_;
+        return static_cast<key_type>(ikey_.back());
     }
 
     bool is_value() const
     {
-        return type_ == key_type::value;
+        return type() == key_type::value;
     }
 
     bool is_deleted() const
     {
-        return type_ == key_type::tombsome;
+        return type() == key_type::tombsome;
     }
 
     bool operator==(const internal_key& other) const
     {
-        return user_key_ == other.user_key_
-            && type_ == other.type_;
+        return ikey_ == other.ikey_;
     }
 
-    void encode_to(std::string* out) const
+    std::string_view underlying_key() const
     {
-        out->append(user_key_.begin(), user_key_.end());
-        out->push_back(static_cast<char>(type_));
+        return ikey_;
     }
 
 private:
-    std::string user_key_;
-    key_type type_;
+    std::string ikey_;
 };
 
 struct internal_key_value {
