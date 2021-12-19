@@ -2,7 +2,7 @@
 
 #include <string_view>
 #include <memory>
-#include "core.h"
+#include <boost/noncopyable.hpp>
 
 namespace cloudkv {
 

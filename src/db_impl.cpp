@@ -1,6 +1,7 @@
 #include <chrono>
 #include <thread>
 #include <filesystem>
+#include <vector>
 #include <fmt/core.h>
 #include <range/v3/view.hpp>
 #include <range/v3/algorithm.hpp>
@@ -14,6 +15,8 @@
 #include "task/gc_task.h"
 #include "task/checkpoint_task.h"
 #include "task/compaction_task.h"
+#include "iterator/db_iterator.h"
+#include "iterator/merge_iterator.h"
 #include "db_impl.h"
 #include "kv_format.h"
 #include "replayer.h"
@@ -124,15 +127,21 @@ void db_impl::remove(std::string_view key)
     write_(batch);
 }
 
-std::map<std::string, std::string> db_impl::query_range(
-    std::string_view start_key,
-    std::string_view end_key,
-    int count)
+iter_ptr db_impl::iter()
 {
-    (void)start_key;
-    (void)end_key;
-    (void)count;
-    return {};
+    auto ctx = get_read_ctx_();
+
+    std::vector<iter_ptr> iterators;
+    iterators.reserve(ctx.memtables.size() + ctx.sstables.size());
+
+    for (const auto& m: ctx.memtables) {
+        iterators.push_back(m->iter());
+    }
+    for (const auto& s: ctx.sstables) {
+        iterators.push_back(s->iter());
+    }
+
+    return std::make_unique<db_iterator>(std::make_unique<merge_iterator>(std::move(iterators)));
 }
 
 void db_impl::TEST_flush()

@@ -25,10 +25,7 @@ public:
 
     void remove(std::string_view key) override;
 
-    std::map<std::string, std::string> query_range(
-        std::string_view start_key,
-        std::string_view end_key,
-        int count = 128) override;
+    iter_ptr iter() override;
 
 public:
     // for tests

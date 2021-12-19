@@ -18,6 +18,7 @@ for _, test in ipairs(all_tests()) do
 target(test[1])
     set_kind("binary")
     add_files(test[2])
+    add_includedirs("./")
     add_packages("gtest")
     add_packages("range-v3")
     add_packages("fmt")
