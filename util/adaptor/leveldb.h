@@ -63,14 +63,9 @@ public:
         }
     }
 
-    std::map<std::string, std::string> query_range(
-        std::string_view start_key,
-        std::string_view end_key,
-        int count) override
+    iter_ptr iter() override
     {
-        (void)start_key;
-        (void)end_key;
-        (void)count;
+        // todo
         return {};
     }
 
