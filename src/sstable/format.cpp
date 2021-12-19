@@ -1,3 +1,4 @@
+#include <cassert>
 #include "cloudkv/exception.h"
 #include "sstable/format.h"
 #include "util/fmt_std.h"

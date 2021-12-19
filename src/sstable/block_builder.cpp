@@ -1,3 +1,4 @@
+#include <cassert>
 #include "sstable/block_builder.h"
 #include "sstable/format.h"
 
