@@ -66,9 +66,7 @@ TEST(db, Basic)
     EXPECT_FALSE(db->query(key));
     EXPECT_FALSE(db->query(bad_key));
 
-    db->batch_add({
-        { key, val }
-    });
+    db->add(key, val);
 
     const auto r = db->query(key);
     EXPECT_TRUE(r);

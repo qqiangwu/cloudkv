@@ -24,6 +24,7 @@ public:
 
     void batch_add(const std::vector<key_value>& key_values) override;
 
+    void add(std::string_view key, std::string_view value) override;
     void remove(std::string_view key) override;
 
     iter_ptr iter() override;

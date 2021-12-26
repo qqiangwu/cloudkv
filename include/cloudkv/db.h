@@ -26,6 +26,8 @@ public:
     // fixme: use WriteBatch interface
     virtual void batch_add(const std::vector<key_value>& key_values) = 0;
 
+    virtual void add(std::string_view key, std::string_view value) = 0;
+
     virtual void remove(std::string_view key) = 0;
 
     virtual iter_ptr iter() = 0;

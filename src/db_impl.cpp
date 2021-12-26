@@ -120,6 +120,14 @@ void db_impl::batch_add(const std::vector<key_value>& key_values)
     write_(batch);
 }
 
+void db_impl::add(std::string_view key, std::string_view value)
+{
+    write_batch batch;
+    batch.add(key, value);
+
+    write_(batch);
+}
+
 void db_impl::remove(std::string_view key)
 {
     write_batch batch;

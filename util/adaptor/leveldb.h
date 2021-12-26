@@ -55,6 +55,14 @@ public:
         }
     }
 
+    void add(std::string_view key, std::string_view value) override
+    {
+        auto s = db_->Put({}, as_slice(key), as_slice(value));
+        if (!s.ok()) {
+            throw std::runtime_error{ fmt::format("put kv failed: {}", s.ToString()) };
+        }
+    }
+
     void remove(std::string_view key) override
     {
         auto s = db_->Delete({}, as_slice(key));
