@@ -13,4 +13,6 @@ using boost::noncopyable;
 
 using path_t = std::filesystem::path;
 
+namespace fs = std::filesystem;
+
 }

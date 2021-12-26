@@ -3,6 +3,7 @@
 #include <string>
 #include <system_error>
 #include <cerrno>
+#include "cloudkv/exception.h"
 
 namespace cloudkv {
 
@@ -18,6 +19,11 @@ try {
 inline void throw_system_error(const std::string& msg)
 {
     throw std::system_error(errno, std::system_category(), msg);
+}
+
+inline void throw_io_error(const std::string& msg)
+{
+    throw io_error(errno, std::system_category(), msg);
 }
 
 }

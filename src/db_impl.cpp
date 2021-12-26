@@ -54,6 +54,7 @@ db_impl::db_impl(std::string_view name, const options& opts)
         throw db_corrupted{ fmt::format("invalid db {}, no meta file found", db_path_.root()) };
     }
 
+    dblock_ = std::make_unique<file_lock>(db_path_.lock());
     meta_ = metainfo::load(db_path_.meta_info());
     file_id_alloc_.reset(meta_.next_file_id);
     gc_root_.add(meta_.sstables);

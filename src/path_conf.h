@@ -10,10 +10,12 @@ class path_conf {
     static constexpr std::string_view META_INFO = "meta";
     static constexpr std::string_view REDO_DIR = "redo";
     static constexpr std::string_view SST_DIR = "sst";
+    static constexpr std::string_view LOCK_FILE = "lock";
 
 public:
     explicit path_conf(const path_t& p)
         : db_path_(p),
+          lock_(p / LOCK_FILE),
           meta_info_(p / META_INFO),
           redo_dir_(p / REDO_DIR),
           sst_dir_(p / SST_DIR)
@@ -22,6 +24,11 @@ public:
     const path_t& root() const
     {
         return db_path_;
+    }
+
+    const path_t& lock() const
+    {
+        return lock_;
     }
 
     const path_t& meta_info() const
@@ -51,6 +58,7 @@ public:
 
 private:
     const path_t db_path_;
+    const path_t lock_;
     const path_t meta_info_;
     const path_t redo_dir_;
     const path_t sst_dir_;

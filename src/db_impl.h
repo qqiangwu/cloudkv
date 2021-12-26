@@ -7,6 +7,7 @@
 #include "memtable/memtable.h"
 #include "memtable/redolog.h"
 #include "task/task_manager.h"
+#include "util/file_lock.h"
 #include "meta.h"
 #include "file_id_allocator.h"
 #include "gc_root.h"
@@ -62,6 +63,8 @@ private:
 private:
     const options options_;
     const path_conf db_path_;
+
+    std::unique_ptr<file_lock> dblock_;
 
     std::mutex sys_mut_;  // for meta mutation
     std::mutex mut_;      // for db state
