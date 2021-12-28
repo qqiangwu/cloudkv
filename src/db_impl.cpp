@@ -18,6 +18,7 @@
 #include "iterator/db_iterator.h"
 #include "iterator/merge_iterator.h"
 #include "db_impl.h"
+#include "write_batch_accessor.h"
 #include "kv_format.h"
 #include "replayer.h"
 
@@ -109,15 +110,11 @@ std::optional<std::string> db_impl::query(std::string_view key)
     return nullopt;
 }
 
-void db_impl::batch_add(const std::vector<key_value>& key_values)
+void db_impl::batch_add(const write_batch& batch)
 {
-    write_batch batch;
+    auto f = write_executor_.submit(batch);
 
-    for (const auto& kv: key_values) {
-        batch.add(kv.key, kv.value);
-    }
-
-    write_(batch);
+    f.get();
 }
 
 void db_impl::add(std::string_view key, std::string_view value)
@@ -125,7 +122,7 @@ void db_impl::add(std::string_view key, std::string_view value)
     write_batch batch;
     batch.add(key, value);
 
-    write_(batch);
+    batch_add(batch);
 }
 
 void db_impl::remove(std::string_view key)
@@ -133,7 +130,7 @@ void db_impl::remove(std::string_view key)
     write_batch batch;
     batch.remove(key);
 
-    write_(batch);
+    batch_add(batch);
 }
 
 iter_ptr db_impl::iter()
@@ -182,13 +179,6 @@ void db_impl::TEST_flush()
     spdlog::warn("active flushed");
 }
 
-void db_impl::write_(const write_batch& writes)
-{
-    auto f = write_executor_.submit(writes);
-
-    f.get();
-}
-
 void db_impl::make_room_()
 {
     {
@@ -223,13 +213,14 @@ void db_impl::commit_(const write_batch& writes)
 
     make_room_();
 
-    redolog_->write(writes);
+    redolog_->write(write_batch_accessor::as_bytes(writes));
 
     // commit
     try {
-        for (const auto& [key, val, op]: writes) {
-            active_memtable_->add(op, key, val);
-        }
+        write_batch_accessor::iterate(writes,
+            [mt = active_memtable_.get()](const auto op, const auto key, const auto val){
+                mt->add(op, key, val);
+            });
     } catch (std::exception& e) {
         spdlog::critical("commit memtable failed after redo done: {}", e.what());
         std::terminate();

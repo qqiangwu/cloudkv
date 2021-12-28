@@ -1,5 +1,4 @@
 #include <cassert>
-#include "cloudkv/exception.h"
 #include "util/fmt_std.h"
 #include "util/format.h"
 #include "util/exception_util.h"
@@ -16,7 +15,7 @@ redolog_reader::redolog_reader(const path_t& p)
 }
 
 // todo: whatif redolog corrupted
-std::optional<redo_entry> redolog_reader::next()
+std::optional<std::string_view> redolog_reader::next()
 {
     assert(!ifs_.eof());
 
@@ -26,28 +25,11 @@ std::optional<redo_entry> redolog_reader::next()
         return std::nullopt;
     }
 
-    std::string buf(record_size, 0);
-    ifs_.read(buf.data(), buf.size());
+    buf_.resize(record_size);
+    ifs_.read(buf_.data(), buf_.size());
     if (!ifs_) {
         return std::nullopt;
     }
 
-    const auto op = DecodeFixed32(buf.data());
-    if (op > std::uint32_t(key_type::tombsome)) {
-        throw data_corrupted{ "redolog corrupted" };
-    }
-
-    try {
-        std::string key;
-        std::string val;
-        std::string_view sv = buf;
-        sv.remove_prefix(sizeof(op));
-
-        sv = decode_str(sv, &key);
-        sv = decode_str(sv, &val);
-
-        return redo_entry{ std::move(key), std::move(val), key_type(op) };
-    } catch (std::invalid_argument&) {
-        throw data_corrupted{ "redolog corrupted" };
-    }
+    return buf_;
 }

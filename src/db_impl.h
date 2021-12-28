@@ -22,7 +22,7 @@ public:
 
     std::optional<std::string> query(std::string_view key) override;
 
-    void batch_add(const std::vector<key_value>& key_values) override;
+    void batch_add(const write_batch& key_values) override;
 
     void add(std::string_view key, std::string_view value) override;
     void remove(std::string_view key) override;
@@ -34,8 +34,6 @@ public:
     void TEST_flush();
 
 private:
-    void write_(const write_batch& batch);
-
     void make_room_();
     void commit_(const write_batch& batch);
 

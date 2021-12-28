@@ -1,10 +1,9 @@
 #pragma once
 
 #include <fstream>
-#include <string>
 #include <memory>
+#include <string_view>
 #include "core.h"
-#include "memtable/write_batch.h"
 
 namespace cloudkv {
 
@@ -12,7 +11,7 @@ class redolog : noncopyable {
 public:
     explicit redolog(const path_t& p, std::uint64_t buffer_size = 4096);
 
-    void write(const write_batch& batch);
+    void write(std::string_view record);
 
 private:
     std::ofstream out_;

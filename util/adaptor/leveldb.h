@@ -40,16 +40,28 @@ public:
         }
     }
 
-    void batch_add(const std::vector<key_value>& key_values) override
+    void batch_add(const write_batch& key_values) override
     {
         using namespace leveldb;
 
-        WriteBatch batch;
-        for (const auto& [k, v]: key_values) {
-            batch.Put(as_slice(k), as_slice(v));
-        }
+        struct handler : public write_batch::handler {
+            WriteBatch batch;
 
-        auto s = db_->Write({}, &batch);
+            void add(std::string_view key, std::string_view val) override
+            {
+                batch.Put(as_slice(key), as_slice(val));
+            }
+
+            void remove(std::string_view key) override
+            {
+                batch.Delete(as_slice(key));
+            }
+        };
+
+        handler h;
+        key_values.iterate(&h);
+
+        auto s = db_->Write({}, &h.batch);
         if (!s.ok()) {
             throw std::runtime_error{ fmt::format("write failed: {}", s.ToString()) };
         }
@@ -78,7 +90,7 @@ public:
     }
 
 private:
-    leveldb::Slice as_slice(std::string_view s) const
+    static leveldb::Slice as_slice(std::string_view s)
     {
         return leveldb::Slice(s.data(), s.size());
     }

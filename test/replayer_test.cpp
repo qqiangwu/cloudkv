@@ -5,6 +5,7 @@
 #include "util/fmt_std.h"
 #include "memtable/redolog.h"
 #include "cloudkv/exception.h"
+#include "write_batch_accessor.h"
 
 using namespace std;
 using namespace cloudkv;
@@ -64,7 +65,8 @@ TEST(replayer, Replay)
             write_batch batch;
 
             batch.add(fmt::format("key-{}-{}", i, k), fmt::format("val-{}-{}", i, k));
-            log.write(batch);
+
+            log.write(write_batch_accessor(batch).to_bytes());
         }
     }
 

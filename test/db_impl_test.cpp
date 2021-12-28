@@ -93,9 +93,12 @@ TEST(db, MultiInsert)
         })
         | to<std::vector>();
 
-    db->batch_add(key_values | views::transform([](const auto& kv){
-        return key_value{ std::get<0>(kv), std::get<1>(kv) };
-    }) | to<std::vector>());
+    write_batch batch;
+    for (const auto& [k, v]: key_values) {
+        batch.add(k, v);
+    }
+
+    db->batch_add(batch);
 
     for (const auto& [key, val]: key_values) {
         const auto r = db->query(key);
@@ -117,7 +120,7 @@ TEST(db, QueryRange)
         if (++i % 8 == 0) {
             db->remove(k);
         } else {
-            db->batch_add({{ k, v }});
+            db->add(k, v);
             testkv.emplace(k, v);
         }
     }
@@ -146,9 +149,7 @@ TEST(db, Checkpoint)
     auto db = open(db_name, opts);
 
     for (auto i: indices(opts.write_buffer_size)) {
-        db->batch_add({
-            { "key-" + std::to_string(i), "val-" + std::to_string(i) }
-        });
+        db->add("key-" + std::to_string(i), "val-" + std::to_string(i));
     }
 
     for (auto i: indices(opts.write_buffer_size)) {
@@ -167,9 +168,7 @@ TEST(db, Persistent)
     auto db = open(db_name, opts);
 
     for (auto i: indices(opts.write_buffer_size)) {
-        db->batch_add({
-            { "key-" + std::to_string(i), "val-" + std::to_string(i) }
-        });
+        db->add("key-" + std::to_string(i), "val-" + std::to_string(i));
     }
 
     for (auto i: indices(opts.write_buffer_size)) {

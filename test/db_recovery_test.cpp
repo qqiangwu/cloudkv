@@ -26,9 +26,7 @@ TEST(db_recover, Replay)
     ASSERT_TRUE(db);
 
     for (const auto i: indices(key_count)) {
-        db->batch_add({
-            { "key-" + std::to_string(i), "val-" + std::to_string(i) }
-        });
+        db->add("key-" + std::to_string(i), "val-" + std::to_string(i));
     }
 
     for (const auto i: indices(key_count)) {

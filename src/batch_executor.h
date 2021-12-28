@@ -8,7 +8,7 @@
 #include <functional>
 #include <vector>
 #include <boost/noncopyable.hpp>
-#include "memtable/write_batch.h"
+#include "cloudkv/write_batch.h"
 
 namespace cloudkv {
 

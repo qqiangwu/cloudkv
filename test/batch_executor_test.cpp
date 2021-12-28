@@ -2,6 +2,7 @@
 #include <range/v3/algorithm.hpp>
 #include <gtest/gtest.h>
 #include "batch_executor.h"
+#include "write_batch_accessor.h"
 
 using namespace cloudkv;
 using namespace ranges;
@@ -31,9 +32,7 @@ TEST(batch_executor, NoBatch)
     executor.submit(batch).get();
 
     ASSERT_EQ(w.batch.size(), batch.size());
-    ASSERT_TRUE(equal(w.batch, batch, [](const auto& x, const auto& y){
-        return x.op == y.op && x.key == y.key && x.value == y.value;
-    }));
+    ASSERT_EQ(write_batch_accessor(batch).to_bytes(), write_batch_accessor(w.batch).to_bytes());
 }
 
 TEST(batch_executor, DoBatch)

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include "util/format.h"
 
 namespace cloudkv {
 
@@ -12,6 +13,17 @@ enum class key_type : std::uint8_t {
     value,
     tombsome
 };
+
+inline void encode_internel_key(user_key_ref key, key_type op, std::string* buf)
+{
+    const auto ksize = key.size() + 1;
+
+    buf->reserve(buf->size() + ksize + sizeof(std::uint32_t));
+
+    PutFixed32(buf, ksize);
+    buf->append(key.begin(), key.end());
+    buf->push_back(static_cast<char>(op));
+}
 
 class internal_key {
 public:

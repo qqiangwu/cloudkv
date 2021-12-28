@@ -1,28 +1,25 @@
 #pragma once
 
-#include <string>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <fstream>
 #include "core.h"
 #include "kv_format.h"
 
 namespace cloudkv {
 
-struct redo_entry {
-    std::string key;
-    std::string value;
-    key_type op;
-};
-
 class redolog_reader {
 public:
     explicit redolog_reader(const path_t& p);
 
     // return nullopt if EOF
-    std::optional<redo_entry> next();
+    // the return string_view keep valid until next call
+    std::optional<std::string_view> next();
 
 private:
     std::ifstream ifs_;
+    std::string buf_;
 };
 
 }

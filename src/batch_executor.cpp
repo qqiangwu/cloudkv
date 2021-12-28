@@ -2,7 +2,9 @@
 #include <exception>
 #include <chrono>
 #include <spdlog/spdlog.h>
+#include <scope_guard.hpp>
 #include "batch_executor.h"
+#include "write_batch_accessor.h"
 
 using namespace cloudkv;
 
@@ -19,13 +21,14 @@ batch_executor::batch_executor(commit_fn fn)
 
 batch_executor::~batch_executor()
 {
-    assert(task_queue_.empty());
-    assert(working_set_.empty());
     assert(executor_.joinable());
 
     stopped_ = true;
     work_doable_.notify_all();
     executor_.join();
+
+    assert(task_queue_.empty());
+    assert(working_set_.empty());
 }
 
 std::future<void> batch_executor::submit(const write_batch& batch)
@@ -68,7 +71,6 @@ void batch_executor::run_() noexcept
             spdlog::error("commit failed: {}, ignored", e.what());
 
             auto ep = std::current_exception();
-
             for (const auto& p: working_set_) {
                 p->promise.set_exception(ep);
             }
@@ -107,15 +109,17 @@ void batch_executor::swap_buffer_()
 void batch_executor::run_once_()
 {
     write_batch batch;
+    write_batch_accessor accessor(batch);
     for (const auto& p: working_set_) {
-        batch.add(p->batch);
+        accessor.append(p->batch);
     }
 
+    // commit
     if (batch.size() > 0) {
         commit_fn_(batch);
     }
 
-    // commit
+    // post commit
     for (const auto& p: working_set_) {
         p->promise.set_value();
     }

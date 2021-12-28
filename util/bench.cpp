@@ -54,15 +54,6 @@ void fill_random(Thread_ctx& ctx)
 {
     auto& db = ctx.conf.db;
 
-    struct raw_key_value {
-        std::string key;
-        std::string val;
-    };
-    std::vector<raw_key_value> raw;
-    std::vector<key_value> batch;
-    raw.reserve(FLAGS_batch_size);
-    batch.reserve(FLAGS_batch_size);
-
     std::random_device random_device;
     std::mt19937 engine{random_device()};
     std::uniform_int_distribution<int> dist(0, FLAGS_key_count - 1);
@@ -70,20 +61,12 @@ void fill_random(Thread_ctx& ctx)
     for (const auto i: indices(FLAGS_key_count / FLAGS_batch_size)) {
         (void)i;
 
-        raw.clear();
-        batch.clear();
+        write_batch batch;
 
         for (const auto k: indices(FLAGS_batch_size)) {
             (void)k;
 
-            raw.push_back({
-                fmt::format("{:016}", dist(engine)),
-                std::string(FLAGS_val_size, ' ')
-            });
-            batch.push_back({
-                raw.back().key,
-                raw.back().val
-            });
+            batch.add(fmt::format("{:016}", dist(engine)), std::string(FLAGS_val_size, ' '));
         }
 
         db->batch_add(batch);

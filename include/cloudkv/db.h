@@ -8,13 +8,9 @@
 #include <boost/noncopyable.hpp>
 #include "cloudkv/options.h"
 #include "cloudkv/iter.h"
+#include "cloudkv/write_batch.h"
 
 namespace cloudkv {
-
-struct key_value {
-    std::string_view key;
-    std::string_view value;
-};
 
 // all operations all atomic
 class kv_store : private boost::noncopyable {
@@ -23,8 +19,7 @@ public:
 
     virtual std::optional<std::string> query(std::string_view key) = 0;
 
-    // fixme: use WriteBatch interface
-    virtual void batch_add(const std::vector<key_value>& key_values) = 0;
+    virtual void batch_add(const write_batch& batch) = 0;
 
     virtual void add(std::string_view key, std::string_view value) = 0;
 

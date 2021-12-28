@@ -12,6 +12,7 @@
 #include "memtable/redolog_reader.h"
 #include "memtable/memtable.h"
 #include "task/checkpoint_task.h"
+#include "write_batch_accessor.h"
 
 using namespace cloudkv;
 using namespace ranges;
@@ -78,9 +79,11 @@ sstable_ptr replayer::do_replay_(const path_t& redopath)
     redolog_reader reader(redopath);
     auto mt = std::make_shared<memtable>();
     while (auto entry = reader.next()) {
-        const auto& logentry = entry.value();
+        const auto logentry = entry.value();
 
-        mt->add(logentry.op, logentry.key, logentry.value);
+        write_batch_accessor::iterate(logentry, [mt = mt.get()](const auto op, const auto key, const auto val){
+            mt->add(op, key, val);
+        });
     }
 
     if (mt->bytes_used() == 0) {
