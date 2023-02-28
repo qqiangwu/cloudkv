@@ -48,9 +48,18 @@ jobs:
     #   If the Autobuild fails above, remove it and uncomment the following three lines.
     #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
 
-    # - run: |
-    #     echo "Run, Build Application using script"
-    #     ./location_of_script_within_repo/buildscript.sh
+    # Runs a single command using the runners shell
+    - name: Install xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+
+    - name: Config xmake
+      run: xmake f -y --with_test=y
+
+    # Runs a set of commands using the runners shell
+    - name: Build
+      run: xmake -ay
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
