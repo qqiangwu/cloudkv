@@ -1,6 +1,10 @@
 #include <string_view>
+#include <list>
+#include <vector>
 #include <gtest/gtest.h>
+#include <range/v3/range.hpp>
 #include "memtable/memtable.h"
+#include "range/v3/range/conversion.hpp"
 #include "test_util.h"
 
 using namespace std;

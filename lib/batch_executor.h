@@ -6,6 +6,7 @@
 #include <future>
 #include <memory>
 #include <functional>
+#include <iterator>
 #include <vector>
 #include <boost/noncopyable.hpp>
 #include "cloudkv/write_batch.h"
